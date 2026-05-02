@@ -1,0 +1,20 @@
+#node modules
+node_modules/
+
+.env
+
+#react modules
+dist/
+build/
+
+#log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+#operating system stuff
+.DS_Store
+Thumbs.db
+
+#personal settings dni
+.vscode/
