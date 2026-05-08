@@ -1,9 +1,21 @@
-:root {
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+#root {
   --main-bg: #F5F1E8;
   --card-bg: #CCD5C0;
   --accent: #9FB873;
   --secondary: #6E775C;
   --dark: #38422B;
+  min-height: 100vh;
 }
 
 .counter {
@@ -194,16 +206,61 @@
 }
 
 .login-container {
-  width: 360px;
-  background-color: var(--card-bg);
+  width: 100%;
+  background-color: #ccd5c0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
   padding: 32px;
   border-radius: 22px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  min-height: 100vh;
 }
+
+.login-container h1 {
+  font-size: 72px;
+  line-height: 1;
+  margin: 0;
+  color: #38422B;
+  font-weight: 700;
+  text-align: center;
+}
+
+.login-subtitle {
+  font-size: 32px;
+  line-height: 1;
+  margin: 0 0 28px 0;
+  font-weight: 600;
+  text-align: center;
+  color: #38422B;
+  margin-top: -10px;
+  margin-bottom: 35px;
+}
+
+.login-container form {
+  width: 430px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 
 .login-container h1 {
   color: var(--dark);
   text-align: center;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #CCD5C0;
+  font-family: Arial, sans-serif;
+  color: #38422b
 }
 
 .login-container p {
@@ -212,31 +269,48 @@
 
 .login-container input {
   width: 100%;
-  padding: 12px;
+  padding: 18px 22px;
   margin-top: 12px;
   border-radius: 14px;
-  border: 1px solid var(--secondary);
-  background-color: var(--main-bg);
-  box-sizing: border-box;
+  border: 2px solid #000;
+  background-color: #f5f1e8;
+  color: #000;
+  font-size: 16px;
+}
+
+.login-container input::placeholder {
+  color: #555;
+}
+
+.login-container form {
+  width: 430px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .login-container button {
   width: 100%;
-  margin-top: 18px;
-  padding: 12px;
+  padding: 18px;
   border: none;
   border-radius: 14px;
-  background-color: var(--dark);
+  background-color: #38422b;
   color: white;
+  font-size: 17px;
   cursor: pointer;
-  transition: background-color 0.2s;
+  font-weight: 700;
+}
+
+.login-container input::placeholder {
+  color: #555;
 }
 
 .login-container button:hover {
-  background-color: var(--secondary);
+  background-color: #6e775c;
 }
 
 .error {
-  color: #3b4035;
-  margin-top: 12px;
+  color: #8b2e2e;
+  font-weight: bold;
+  margin-top: 10px;
 }
