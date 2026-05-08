@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export default function Login({ onLogin }) {
+export default function Login({ onLogin, onShowSignup }) {
   const [showCodePage, setShowCodePage] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -71,6 +71,10 @@ export default function Login({ onLogin }) {
       </form>
 
       {message && <p className="error">{message}</p>}
+
+      <p className="signup-prompt">
+        Don't have an account? <button type="button" onClick={onShowSignup} className="link-button">Sign Up</button>
+      </p>
     </div>
   );
 }
