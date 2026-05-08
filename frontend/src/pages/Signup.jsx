@@ -19,8 +19,9 @@ export default function Signup({ onBack }) {
   }
 
   return (
-    <div className="signup-container">
-      <h1>Create an account</h1>
+    <div className="login-container">
+      <h1>Fitness Tracker</h1>
+      <h2 className="login-subtitle">Sign Up</h2>
 
       <form onSubmit={handleSignup}>
         <input
@@ -47,9 +48,9 @@ export default function Signup({ onBack }) {
         <button type="submit">Sign Up</button>
       </form>
 
-      {message && <p className="info">{message}</p>}
+      {message && <p className="error">{message}</p>}
 
-      <p>
+      <p className="signup-prompt">
         Already have an account? <button type="button" onClick={onBack} className="link-button">Back to Log In</button>
       </p>
     </div>
