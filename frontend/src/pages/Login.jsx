@@ -49,7 +49,8 @@ export default function Login({ onLogin }) {
 
   return (
     <div className="login-container">
-      <h1>Fitness Tracker Login</h1>
+      <h1>Fitness Tracker</h1>
+      <h2 className="login-subtitle">Login</h2>
 
       <form onSubmit={loginUser}>
         <input
