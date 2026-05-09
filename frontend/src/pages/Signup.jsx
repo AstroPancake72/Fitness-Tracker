@@ -6,7 +6,7 @@ export default function Signup({ onBack }) {
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
 
-  function handleSignup(e) {
+  async function handleSignup(e) {
     e.preventDefault();
 
     // fake signup flow — replace with real API call later
@@ -15,8 +15,30 @@ export default function Signup({ onBack }) {
       return;
     }
 
-    setMessage("Account created. You can now log in.");
+    try {
+
+      const response = await fetch("http://localhost:5000/api/signup", {
+      method: "POST", 
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage("Account created. You can now log in.");
+        setName("");
+        setEmail("");
+        setPassword("");
+      } else {
+        setMessage(data.message || "Signup failed.");
+      }
+    } catch (error) {
+      console.error(error);
+      setMessage("Server error. Please try again later.");
+    }
   }
+  
 
   return (
     <div className="login-container">
@@ -55,4 +77,5 @@ export default function Signup({ onBack }) {
       </p>
     </div>
   );
+
 }
