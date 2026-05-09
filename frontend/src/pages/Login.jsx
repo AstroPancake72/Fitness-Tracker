@@ -7,17 +7,32 @@ export default function Login({ onLogin, onShowSignup }) {
   const [code, setCode] = useState("");
   const [message, setMessage] = useState("");
 
-  function loginUser(e) {
+  async function loginUser(e) {
     e.preventDefault();
 
-    //temporary login info
-    if (email === "test@example.com" && password === "password123") {
-      setMessage("");
-      setShowCodePage(true);
-    } else {
-      setMessage("Wrong email or password");
+    try {
+
+        const response = await fetch("http://localhost:5000/api/login", {
+        method: "POST", 
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+        });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage("");
+        
+        setShowCodePage(true); 
+      } else {
+        setMessage(data.message || "Wrong email or password");
+      }
+    } catch (error) {
+      console.error(error);
+      setMessage("Server error. Please try again later.");
     }
   }
+  
 
   function checkCode(e) {
     e.preventDefault();
