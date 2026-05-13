@@ -3,187 +3,202 @@ import '../App.css'
 
 export default function Workouts() {
   const [workouts, setWorkouts] = useState([])
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ datetime: '', length: '', type: 'Cardio' })
-  const [deletingId, setDeletingId] = useState(null);
+  const [activeWorkout, setActiveWorkout] = useState(null)
+  const [newRoutineName, setNewRoutineName] = useState("")
+  const [showAddRoutine, setShowAddRoutine] = useState(false)
+  
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, targetId: null, type: null, index: null })
+
   useEffect(() => {
     fetch("http://localhost:5000/api/workouts", { credentials: 'include' })
       .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) setWorkouts(data);
-      })
+      .then(data => { if (Array.isArray(data)) setWorkouts(data); })
       .catch(err => console.error("Load error:", err));
   }, [])
 
-  function handleChange(e) {
-    const { name, value } = e.target
-    setForm(prev => ({ ...prev, [name]: value }))
+  const routines = workouts.reduce((acc, current) => {
+    if (!current.name) return acc;
+    const existing = acc.find(item => item.name === current.name);
+    if (!existing) acc.push(current);
+    return acc;
+  }, []);
+
+  function startWorkout(baseline) {
+    setActiveWorkout({
+      name: baseline.name,
+      exercises: baseline.exercises.map(ex => ({
+        ...ex,
+        weight: ex.weight || 0,
+        reps: ex.reps || 0,
+        sets: ex.sets || 0,
+        time: ex.time || 0 
+      }))
+    });
   }
 
-  async function addWorkout(e) {
-    e.preventDefault()
-    const { datetime, length, type } = form
-    if (!datetime || !length || !type) return
+  const openDeleteModal = (type, idOrIndex) => {
+    setDeleteModal({ 
+      isOpen: true, 
+      type, 
+      targetId: type === 'routine' ? idOrIndex : null, 
+      index: type === 'exercise' ? idOrIndex : null 
+    });
+  }
+
+  const confirmDelete = async () => {
+    if (deleteModal.type === 'routine') {
+      const res = await fetch(`http://localhost:5000/api/workouts/${deleteModal.targetId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      if (res.ok) setWorkouts(prev => prev.filter(w => w._id !== deleteModal.targetId));
+    } else {
+      const updated = activeWorkout.exercises.filter((_, i) => i !== deleteModal.index);
+      setActiveWorkout({ ...activeWorkout, exercises: updated });
+    }
+    setDeleteModal({ isOpen: false, targetId: null, type: null, index: null });
+  }
+
+  const updateExercise = (index, field, value) => {
+    const updated = [...activeWorkout.exercises];
+    updated[index][field] = (field === 'name') ? value : Number(value);
+    setActiveWorkout({ ...activeWorkout, exercises: updated });
+  }
+
+  async function saveWorkout() {
+    const validExercises = activeWorkout.exercises.filter(ex => ex.name.trim() !== "");
+
+    if (validExercises.length === 0) {
+      alert("Please enter a name for at least one exercise.");
+      return;
+    }
 
     try {
       const response = await fetch("http://localhost:5000/api/workouts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ datetime, length: Number(length), type }),
+        body: JSON.stringify({
+          name: activeWorkout.name,
+          datetime: new Date(),
+          exercises: validExercises 
+        }),
       });
 
       if (response.ok) {
-        const savedWorkout = await response.json();
-        setWorkouts(prev => [savedWorkout, ...prev]);
-        setForm({ datetime: '', length: '', type: 'Cardio' });
-        setShowForm(false);
+        const saved = await response.json();
+        setWorkouts(prev => [saved, ...prev]);
+        setActiveWorkout(null);
       }
     } catch (err) {
       console.error("Save error:", err);
     }
   }
 
-  async function confirmDelete() {
-  if (!deletingId) return;
-
-  try {
-    const response = await fetch(`http://localhost:5000/api/workouts/${deletingId}`, {
-      method: "DELETE",
-      credentials: "include"
-    });
-    if (response.ok) {
-      setWorkouts(prev => prev.filter(w => w._id !== deletingId));
-      setDeletingId(null); // Close the modal
-    }
-  } catch (err) {
-    console.error("Delete error:", err);
-  }
-}
-
-  function stats() {
-    const total = workouts.length
-    const totalMinutes = workouts.reduce((s, w) => s + (w.length || 0), 0)
-    const byType = workouts.reduce((acc, w) => {
-      acc[w.type] = (acc[w.type] || 0) + 1
-      return acc
-    }, {})
-    return { total, totalMinutes, byType }
-  }
-
   return (
-    <div className="login-container">
-      <h1>Fitness Tracker</h1>
-      <h2 className="login-subtitle">Your Workouts</h2>
-
-      <button className="counter" onClick={() => setShowForm(!showForm)}>
-        {showForm ? 'Close' : 'Add Workout'}
-      </button>
-
-      {showForm && (
-        <form onSubmit={addWorkout}>
-          <input name="datetime" type="datetime-local" value={form.datetime} onChange={handleChange} min="1900-01-01T00:00" max="3000-12-31T23:59" required />
-          <input name="length" type="number" placeholder="Length (minutes)" min="1" value={form.length} onChange={handleChange} required />
-          <select name="type" value={form.type} onChange={handleChange} className="login-input-style">
-            <option>Cardio</option>
-            <option>Strength</option>
-            <option>Flexibility</option>
-            <option>HIIT</option>
-            <option>Other</option>
-          </select>
-          <button type="submit" className="counter" style={{ width: '100%', marginTop: '10px' }}>Add Workout</button>
-        </form>
+    <div className="login-container" style={{maxWidth: '900px'}}>
+      {deleteModal.isOpen && (
+        <div style={modalOverlayStyle}>
+          <div style={modalBoxStyle}>
+            <h3>Confirm Delete</h3>
+            <p>Are you sure you want to delete this {deleteModal.type}?</p>
+            <div style={{display: 'flex', gap: '10px', marginTop: '20px'}}>
+              <button className="counter" style={{flex: 1, background: '#8B0000'}} onClick={confirmDelete}>Delete</button>
+              <button className="counter" style={{flex: 1, background: '#ccc', color: '#000'}} onClick={() => setDeleteModal({isOpen: false})}>Cancel</button>
+            </div>
+          </div>
+        </div>
       )}
 
-      <div style={{ width: '430px', marginTop: '40px' }}>
-        <section style={{ marginBottom: 30 }}>
-          <h3 style={{ color: '#38422B', borderBottom: '2px solid #38422B', paddingBottom: '5px' }}>Summary</h3>
-          <ul style={{ listStyle: 'none', padding: 0 }}>
-            {Object.entries(stats().byType).length === 0 && <li>No workouts yet</li>}
-            {Object.entries(stats().byType).map(([t, c]) => (
-              <li key={t} style={{ fontSize: '18px', margin: '8px 0' }}>
-                <strong>{t}:</strong> {c} sessions
-              </li>
-            ))}
-          </ul>
-        </section>
+      {/* DYNAMIC TITLE: Switches between "My Workouts" and the routine name */}
+      <h1>{activeWorkout ? activeWorkout.name : "My Workouts"}</h1>
 
-        <section>
-          <h3 style={{ color: '#38422B', borderBottom: '2px solid #38422B', paddingBottom: '5px' }}>History</h3>
-          <ul style={{ listStyle: 'none', padding: 0 }}>
-            {workouts.map(w => (
-              <li key={w._id} style={{ 
-                background: '#F5F1E8', 
-                padding: '20px', 
-                borderRadius: '15px', 
-                marginBottom: '15px',
-                border: '1px solid #38422B',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}>
-                <div>
-                  <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
-                    {new Date(w.datetime).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
-                  </div>
-                  <div style={{ marginTop: '5px' }}>{w.type} • {w.length} mins</div>
-                </div>
-      <button 
-        onClick={(e) => {
-          e.stopPropagation();
-          setDeletingId(w._id);
-        }} 
-          style={{ 
-            background: '#8B0000', 
-            color: 'white', 
-            border: 'none', 
-            borderRadius: '50%', 
-            width: '30px', 
-            height: '30px', 
-            cursor: 'pointer', 
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',      
-            justifyContent: 'center',   
-            padding: 0,                
-            lineHeight: 1,            
-            fontSize: '16px'           
-          }}> ✕ </button>
-          </li>
-            ))}
-          </ul>
-        </section>
-      </div>
-      
-      {deletingId && (
-      <div style={{
-        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex',
-        justifyContent: 'center', alignItems: 'center', zIndex: 1000
-      }}>
-      <div style={{
-        background: '#F5F1E8', padding: '30px', borderRadius: '15px',
-        border: '2px solid #38422B', textAlign: 'center', width: '300px'
-      }}>
-        <h3 style={{ color: '#38422B', marginTop: 0 }}>Are you sure?</h3>
-        <p>This will permanently remove this workout session.</p>
-        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '20px' }}>
-          <button 
-          onClick={() => setDeletingId(null)}
-          style={{ background: '#ccc', border: 'none', padding: '10px 20px', borderRadius: '5px', cursor: 'pointer' }}
-          >
-          Cancel
-        </button>
-        <button 
-          onClick={confirmDelete}
-          style={{ background: '#8B0000', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '5px', cursor: 'pointer' }}
-        >
-          Delete
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+      {!activeWorkout ? (
+        <div style={{ width: '100%' }}>
+          {!showAddRoutine ? (
+            <button className="counter" style={{width: '100%', marginBottom: '20px'}} onClick={() => setShowAddRoutine(true)}>
+              + Create New Routine
+            </button>
+          ) : (
+            <div style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
+              <input className="login-input-style" placeholder="Routine Name..." value={newRoutineName} onChange={(e) => setNewRoutineName(e.target.value)} />
+              <button className="counter" onClick={() => { setActiveWorkout({name: newRoutineName, exercises: [{name: "", weight: 0, reps: 0, sets: 0, time: 0}]}); setShowAddRoutine(false); }}>Add</button>
+            </div>
+          )}
+
+          {routines.map(r => (
+            <div key={r._id} style={itemStyle}>
+              <div style={{textAlign: 'left'}}>
+                <div style={{fontWeight: 'bold', fontSize: '18px'}}>{r.name}</div>
+                <div style={{fontSize: '12px', color: '#666'}}>Last: {new Date(r.datetime).toLocaleDateString()}</div>
+              </div>
+              <div style={{display: 'flex', gap: '10px'}}>
+                <button className="counter" onClick={() => startWorkout(r)}>Start</button>
+                <button className="counter" style={{background: '#8B0000'}} onClick={() => openDeleteModal('routine', r._id)}>✕</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={sessionBoxStyle}>
+          {/* Removed the redundant <h2> here since it is now in the <h1> above */}
+          <div style={{display: 'flex', fontWeight: 'bold', padding: '10px 10px 5px 10px', textAlign: 'left', fontSize: '14px'}}>
+            <span style={{flex: 2}}>name</span>
+            <span style={{flex: 1}}>weight</span>
+            <span style={{flex: 1}}>reps</span>
+            <span style={{flex: 1}}>sets</span>
+            <span style={{flex: 1}}>time (min)</span>
+            <span style={{width: '35px'}}></span>
+          </div>
+          <hr style={{ border: '1px solid #38422B', marginBottom: '15px', marginTop: '0' }} />
+
+          {activeWorkout.exercises.map((ex, i) => (
+            <div key={i} style={exerciseRowStyle}>
+              <input value={ex.name} onChange={(e) => updateExercise(i, 'name', e.target.value)} style={{flex: 2, border: 'none', background: 'transparent'}} placeholder="Exercise..."/>
+              <input type="number" value={ex.weight} onChange={(e) => updateExercise(i, 'weight', e.target.value)} style={{flex: 1, width: '40px'}} />
+              <input type="number" value={ex.reps} onChange={(e) => updateExercise(i, 'reps', e.target.value)} style={{flex: 1, width: '40px'}} />
+              <input type="number" value={ex.sets} onChange={(e) => updateExercise(i, 'sets', e.target.value)} style={{flex: 1, width: '40px'}} />
+              <input type="number" value={ex.time} onChange={(e) => updateExercise(i, 'time', e.target.value)} style={{flex: 1, width: '40px'}} />
+              {/* Centered white X button */}
+              <button onClick={() => openDeleteModal('exercise', i)} style={deleteBtnStyle}>✕</button>
+            </div>
+          ))}
+
+          <button className="counter" style={{width: '100%', background: 'transparent', color: '#38422B', border: '1px dashed #38422B', marginBottom: '20px'}} 
+                  onClick={() => setActiveWorkout({...activeWorkout, exercises: [...activeWorkout.exercises, {name: "", weight: 0, reps: 0, sets: 0, time: 0}]})}>
+            + Add Exercise
+          </button>
+
+          <div style={{display: 'flex', gap: '10px'}}>
+            <button className="counter" style={{background: '#8B0000', flex: 1}} onClick={() => setActiveWorkout(null)}>Exit</button>
+            <button className="counter" style={{flex: 2}} onClick={saveWorkout}>Save Workout</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+
+const itemStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F5F1E8', padding: '15px', borderRadius: '15px', marginBottom: '10px', border: '1px solid #38422B' }
+const sessionBoxStyle = { width: '100%', background: '#F5F1E8', padding: '20px', borderRadius: '20px', border: '2px solid #38422B' }
+const exerciseRowStyle = { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', background: 'white', padding: '10px', borderRadius: '8px' }
+
+// FIXED: Flexbox centering for the X
+const deleteBtnStyle = { 
+  width: '30px', 
+  height: '30px', 
+  borderRadius: '50%', 
+  background: '#8B0000', 
+  color: 'white', 
+  border: 'none', 
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '0',
+  lineHeight: '1',
+  fontSize: '16px'
+}
+
+const modalOverlayStyle = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }
+const modalBoxStyle = { background: '#fff', padding: '30px', borderRadius: '15px', textAlign: 'center', width: '300px', border: '2px solid #38422B' }

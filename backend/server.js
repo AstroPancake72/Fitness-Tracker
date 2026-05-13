@@ -44,12 +44,20 @@ const User = mongoose.model("User", userSchema);
 
 const workoutSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  datetime: { type: Date, required: true },
-  length: { type: Number, required: true },
-  type: { type: String, required: true }
+  name: { type: String, required: true }, 
+  datetime: { type: Date, default: Date.now },
+  exercises: [
+    {
+      name: { type: String, required: true },
+      weight: { type: Number, default: 0 },
+      reps: { type: Number, default: 0 },
+      sets: { type: Number, default: 0 },
+      time: { type: Number, default: null } 
+    }
+  ]
 });
-const Workout = mongoose.model("Workout", workoutSchema);
 
+const Workout = mongoose.model("Workout", workoutSchema);
 // 2. Signup Route
 app.post("/api/signup", async (req, res) => {
   try {
@@ -78,21 +86,31 @@ app.post("/api/login", async (req, res) => {
     res.status(500).json({ message: "Login error" });
   }
 });
-// 5. Logout Route
+// 5. workout route
 app.post("/api/workouts", async (req, res) => {
-  if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+  if (!req.session.userId) {
+    return res.status(401).json({ message: "Not logged in" });
+  }
+
   try {
-    const { datetime, length, type } = req.body;
+    const { name, datetime, exercises } = req.body;
+    if (!name || !exercises || !Array.isArray(exercises)) {
+      return res.status(400).json({ message: "Invalid workout data" });
+    }
     const newWorkout = new Workout({
       userId: req.session.userId,
-      datetime,
-      length,
-      type
+      name,
+      datetime: datetime || new Date(), // Use provided date or current time
+      exercises
     });
+
     await newWorkout.save();
+    
     res.status(201).json(newWorkout);
+    
   } catch (err) {
-    res.status(500).json({ message: "Failed to save workout" });
+    console.error("Save error:", err);
+    res.status(500).json({ message: "Failed to save workout session" });
   }
 });
 //6. delete workout 
@@ -130,7 +148,11 @@ app.get("/api/me", async (req, res) => {
 app.get("/api/workouts", async (req, res) => {
   if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
   try {
-    const userWorkouts = await Workout.find({ userId: req.session.userId }).sort({ datetime: -1 });
+    const userWorkouts = await Workout.find({ 
+      userId: req.session.userId,
+      exercises: { $exists: true, $not: { $size: 0 } } 
+    }).sort({ datetime: -1 });
+    
     res.json(userWorkouts);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch workouts" });
