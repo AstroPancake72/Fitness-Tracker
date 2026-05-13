@@ -14,6 +14,15 @@ app.use(
 );
 app.use(express.json());
 
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: { secure: false, httpOnly: true, maxAge: 1000 * 60 * 30, sameSite: "lax" }, // 30 minutes session
+  })
+)
+
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
@@ -55,6 +64,7 @@ app.post("/api/login", async (req, res) => {
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
+    req.session.userId = user._id;
     res.status(200).json({ message: "Login successful", user: { email: user.email } });
   } catch (err) {
     res.status(500).json({ message: "Login error" });
@@ -63,4 +73,15 @@ app.post("/api/login", async (req, res) => {
 
 app.listen(5000, () => {
   console.log("Server running on port 5000");
+});
+
+// 4. Protected Route Example
+app.get("/api/me", async (req, res) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ message: "Not logged in" });
+  }
+
+  const user = await User.findById(req.session.userId).select("-password");
+
+  res.json({ user });
 });
