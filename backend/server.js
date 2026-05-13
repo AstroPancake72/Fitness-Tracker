@@ -65,7 +65,7 @@ app.post("/api/login", async (req, res) => {
     }
 
     // Generate a random 6-digit code for 2fa
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
 
     // Save code and expiration (10 minutes from now) to the user
     user.twoFactorCode = code;
@@ -86,6 +86,32 @@ app.post("/api/login", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Login error" });
+  }
+});
+
+app.post("/api/verify-2fa", async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Check if code matches and isn't expired
+    if (user.twoFactorCode !== code || user.twoFactorExpires < Date.now()) {
+      return res.status(400).json({ message: "Invalid or expired code" });
+    }
+
+    // Clear the code from the database so it can't be reused
+    user.twoFactorCode = undefined;
+    user.twoFactorExpires = undefined;
+    await user.save();
+
+    res.status(200).json({ message: "Login successful", user: { email: user.email } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Verification failed" });
   }
 });
 
