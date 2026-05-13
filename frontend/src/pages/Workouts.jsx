@@ -7,27 +7,56 @@ export default function Workouts() {
   const [form, setForm] = useState({ datetime: '', length: '', type: 'Cardio' })
 
   useEffect(() => {
-    const saved = localStorage.getItem('ft_workouts')
-    if (saved) setWorkouts(JSON.parse(saved))
+    fetch("http://localhost:5000/api/workouts", { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setWorkouts(data);
+      })
+      .catch(err => console.error("Load error:", err));
   }, [])
-
-  useEffect(() => {
-    localStorage.setItem('ft_workouts', JSON.stringify(workouts))
-  }, [workouts])
 
   function handleChange(e) {
     const { name, value } = e.target
     setForm(prev => ({ ...prev, [name]: value }))
   }
 
-  function addWorkout(e) {
+  async function addWorkout(e) {
     e.preventDefault()
     const { datetime, length, type } = form
     if (!datetime || !length || !type) return
-    const newW = { id: Date.now(), datetime, length: Number(length), type }
-    setWorkouts(prev => [newW, ...prev])
-    setForm({ datetime: '', length: '', type: 'Cardio' })
-    setShowForm(false)
+
+    try {
+      const response = await fetch("http://localhost:5000/api/workouts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ datetime, length: Number(length), type }),
+      });
+
+      if (response.ok) {
+        const savedWorkout = await response.json();
+        setWorkouts(prev => [savedWorkout, ...prev]);
+        setForm({ datetime: '', length: '', type: 'Cardio' });
+        setShowForm(false);
+      }
+    } catch (err) {
+      console.error("Save error:", err);
+    }
+  }
+
+  // 3. New Delete function to keep your MongoDB clean
+  async function deleteWorkout(id) {
+    try {
+      const response = await fetch(`http://localhost:5000/api/workouts/${id}`, {
+        method: "DELETE",
+        credentials: "include"
+      });
+      if (response.ok) {
+        setWorkouts(prev => prev.filter(w => w._id !== id));
+      }
+    } catch (err) {
+      console.error("Delete error:", err);
+    }
   }
 
   function stats() {
@@ -40,8 +69,6 @@ export default function Workouts() {
     return { total, totalMinutes, byType }
   }
 
-  const { total, totalMinutes, byType } = stats()
-
   return (
     <div className="login-container">
       <h1>Fitness Tracker</h1>
@@ -53,24 +80,8 @@ export default function Workouts() {
 
       {showForm && (
         <form onSubmit={addWorkout}>
-          <input 
-            name="datetime" 
-            type="datetime-local" 
-            value={form.datetime} 
-            onChange={handleChange} 
-            required
-          />
-
-          <input 
-            name="length" 
-            type="number" 
-            placeholder="Length (minutes)"
-            min="1" 
-            value={form.length} 
-            onChange={handleChange} 
-            required
-          />
-
+          <input name="datetime" type="datetime-local" value={form.datetime} onChange={handleChange} required />
+          <input name="length" type="number" placeholder="Length (minutes)" min="1" value={form.length} onChange={handleChange} required />
           <select name="type" value={form.type} onChange={handleChange} className="login-input-style">
             <option>Cardio</option>
             <option>Strength</option>
@@ -78,10 +89,7 @@ export default function Workouts() {
             <option>HIIT</option>
             <option>Other</option>
           </select>
-
-          <button type="submit" className="counter" style={{ width: '100%', marginTop: '10px' }}>
-            Add Workout
-          </button>
+          <button type="submit" className="counter" style={{ width: '100%', marginTop: '10px' }}>Add Workout</button>
         </form>
       )}
 
@@ -102,17 +110,24 @@ export default function Workouts() {
           <h3 style={{ color: '#38422B', borderBottom: '2px solid #38422B', paddingBottom: '5px' }}>History</h3>
           <ul style={{ listStyle: 'none', padding: 0 }}>
             {workouts.map(w => (
-              <li key={w.id} style={{ 
+              <li key={w._id} style={{ // Changed w.id to w._id for MongoDB
                 background: '#F5F1E8', 
                 padding: '20px', 
                 borderRadius: '15px', 
                 marginBottom: '15px',
-                border: '1px solid #38422B' 
+                border: '1px solid #38422B',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
               }}>
-                <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
-                  {new Date(w.datetime).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                <div>
+                  <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
+                    {new Date(w.datetime).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                  </div>
+                  <div style={{ marginTop: '5px' }}>{w.type} • {w.length} mins</div>
                 </div>
-                <div style={{ marginTop: '5px' }}>{w.type} • {w.length} mins</div>
+                {/* Delete button to help you manage test data */}
+                <button onClick={() => deleteWorkout(w._id)} style={{ background: 'none', border: 'none', color: '#8B0000', cursor: 'pointer', fontSize: '20px' }}>✕</button>
               </li>
             ))}
           </ul>
