@@ -309,6 +309,20 @@ body {
   background-color: #6e775c;
 }
 
+.login-container button.link-button {
+  width: auto;              
+  background: transparent; 
+  color: #38422B;
+  text-decoration: underline;
+  padding: 5px 10px;
+  font-weight: normal;    
+}
+
+.login-container button.link-button:hover {
+  background: none;
+  color: #6E775C;
+}
+
 .error {
   color: #8b2e2e;
   font-weight: bold;
