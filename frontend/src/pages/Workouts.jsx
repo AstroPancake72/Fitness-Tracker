@@ -43,65 +43,81 @@ export default function Workouts() {
   const { total, totalMinutes, byType } = stats()
 
   return (
-    <div style={{ padding: 24 }}>
-      <h2>Workouts</h2>
+    <div className="login-container">
+      <h1>Fitness Tracker</h1>
+      <h2 className="login-subtitle">Your Workouts</h2>
 
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 18 }}>
-        <button onClick={() => setShowForm(s => !s)} className="counter">New Workout</button>
-        <div>
-          <strong>{total}</strong> workouts • <strong>{totalMinutes}</strong> minutes total
-        </div>
-      </div>
+      <button className="counter" onClick={() => setShowForm(!showForm)}>
+        {showForm ? 'Close' : 'Add Workout'}
+      </button>
 
       {showForm && (
-        <form onSubmit={addWorkout} style={{ maxWidth: 520, marginBottom: 18 }}>
-          <label>
-            Date & time
-            <input name="datetime" type="datetime-local" value={form.datetime} onChange={handleChange} />
-          </label>
+        <form onSubmit={addWorkout}>
+          <input 
+            name="datetime" 
+            type="datetime-local" 
+            value={form.datetime} 
+            onChange={handleChange} 
+            required
+          />
 
-          <label>
-            Length (minutes)
-            <input name="length" type="number" min="1" value={form.length} onChange={handleChange} />
-          </label>
+          <input 
+            name="length" 
+            type="number" 
+            placeholder="Length (minutes)"
+            min="1" 
+            value={form.length} 
+            onChange={handleChange} 
+            required
+          />
 
-          <label>
-            Type
-            <select name="type" value={form.type} onChange={handleChange}>
-              <option>Cardio</option>
-              <option>Strength</option>
-              <option>Flexibility</option>
-              <option>HIIT</option>
-              <option>Other</option>
-            </select>
-          </label>
+          <select name="type" value={form.type} onChange={handleChange} className="login-input-style">
+            <option>Cardio</option>
+            <option>Strength</option>
+            <option>Flexibility</option>
+            <option>HIIT</option>
+            <option>Other</option>
+          </select>
 
-          <button type="submit" className="counter">Add</button>
+          <button type="submit" className="counter" style={{ width: '100%', marginTop: '10px' }}>
+            Add Workout
+          </button>
         </form>
       )}
 
-      <section style={{ marginBottom: 18 }}>
-        <h3>By type</h3>
-        <ul>
-          {Object.entries(byType).length === 0 && <li>No workouts yet</li>}
-          {Object.entries(byType).map(([t, c]) => (
-            <li key={t}>{t}: {c}</li>
-          ))}
-        </ul>
-      </section>
+      <div style={{ width: '430px', marginTop: '40px' }}>
+        <section style={{ marginBottom: 30 }}>
+          <h3 style={{ color: '#38422B', borderBottom: '2px solid #38422B', paddingBottom: '5px' }}>Summary</h3>
+          <ul style={{ listStyle: 'none', padding: 0 }}>
+            {Object.entries(stats().byType).length === 0 && <li>No workouts yet</li>}
+            {Object.entries(stats().byType).map(([t, c]) => (
+              <li key={t} style={{ fontSize: '18px', margin: '8px 0' }}>
+                <strong>{t}:</strong> {c} sessions
+              </li>
+            ))}
+          </ul>
+        </section>
 
-      <section>
-        <h3>All workouts</h3>
-        <ul style={{ listStyle: 'none', padding: 0 }}>
-          {workouts.map(w => (
-            <li key={w.id} style={{ background: '#f5f1e8', padding: 12, borderRadius: 10, marginBottom: 10 }}>
-              <div><strong>{new Date(w.datetime).toLocaleString()}</strong></div>
-              <div>Type: {w.type}</div>
-              <div>Length: {w.length} minutes</div>
-            </li>
-          ))}
-        </ul>
-      </section>
+        <section>
+          <h3 style={{ color: '#38422B', borderBottom: '2px solid #38422B', paddingBottom: '5px' }}>History</h3>
+          <ul style={{ listStyle: 'none', padding: 0 }}>
+            {workouts.map(w => (
+              <li key={w.id} style={{ 
+                background: '#F5F1E8', 
+                padding: '20px', 
+                borderRadius: '15px', 
+                marginBottom: '15px',
+                border: '1px solid #38422B' 
+              }}>
+                <div style={{ fontSize: '18px', fontWeight: 'bold' }}>
+                  {new Date(w.datetime).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                </div>
+                <div style={{ marginTop: '5px' }}>{w.type} • {w.length} mins</div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
     </div>
   )
 }
