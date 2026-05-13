@@ -4,6 +4,7 @@ import viteLogo from './assets/vite.svg'
 import heroImg from './assets/hero.png'
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import Workouts from "./pages/Workouts";
 import "./App.css";
 
 function App() {
@@ -32,12 +33,23 @@ function App() {
     <>
       {loggedIn ? (
         <div>
-          <h1>Welcome to Fitness Tracker</h1>
-          <p>You are logged in.</p>
+          <nav style={{ display: 'flex', gap: 12, padding: 12, justifyContent: 'center' }}>
+            <button onClick={() => setPage('workouts')} className="counter">Workouts</button>
+            <button onClick={() => { setLoggedIn(false); setPage('login'); }} className="counter">Logout</button>
+          </nav>
+
+          {page === 'workouts' ? (
+            <Workouts />
+          ) : (
+            <div style={{ padding: 24 }}>
+              <h1>Welcome to Fitness Tracker</h1>
+              <p>You are logged in.</p>
+            </div>
+          )}
         </div>
       ) : (
         page === 'login' ? (
-          <Login onLogin={() => setLoggedIn(true)} onShowSignup={() => setPage('signup')} />
+          <Login onLogin={() => { setLoggedIn(true); setPage('workouts'); }} onShowSignup={() => setPage('signup')} />
         ) : (
           <Signup onBack={() => setPage('login')} />
         )
