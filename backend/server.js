@@ -42,6 +42,14 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model("User", userSchema);
 
+const workoutSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  datetime: { type: Date, required: true },
+  length: { type: Number, required: true },
+  type: { type: String, required: true }
+});
+const Workout = mongoose.model("Workout", workoutSchema);
+
 // 2. Signup Route
 app.post("/api/signup", async (req, res) => {
   try {
@@ -70,6 +78,39 @@ app.post("/api/login", async (req, res) => {
     res.status(500).json({ message: "Login error" });
   }
 });
+// 5. Logout Route
+app.post("/api/workouts", async (req, res) => {
+  if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+  try {
+    const { datetime, length, type } = req.body;
+    const newWorkout = new Workout({
+      userId: req.session.userId,
+      datetime,
+      length,
+      type
+    });
+    await newWorkout.save();
+    res.status(201).json(newWorkout);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to save workout" });
+  }
+});
+//6. delete workout 
+app.delete("/api/workouts/:id", async (req, res) => {
+  if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+  try {
+    // Ensure the workout belongs to the user before deleting
+    const deletedWorkout = await Workout.findOneAndDelete({ 
+      _id: req.params.id, 
+      userId: req.session.userId 
+    });
+    
+    if (!deletedWorkout) return res.status(404).json({ message: "Workout not found" });
+    res.json({ message: "Workout deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to delete" });
+  }
+});
 
 app.listen(5000, () => {
   console.log("Server running on port 5000");
@@ -84,4 +125,14 @@ app.get("/api/me", async (req, res) => {
   const user = await User.findById(req.session.userId).select("-password");
 
   res.json({ user });
+});
+//fetching workouts
+app.get("/api/workouts", async (req, res) => {
+  if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+  try {
+    const userWorkouts = await Workout.find({ userId: req.session.userId }).sort({ datetime: -1 });
+    res.json(userWorkouts);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch workouts" });
+  }
 });
