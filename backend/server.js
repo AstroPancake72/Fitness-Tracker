@@ -158,3 +158,30 @@ app.get("/api/workouts", async (req, res) => {
     res.status(500).json({ message: "Failed to fetch workouts" });
   }
 });
+
+app.put('/api/workouts/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, originalName, datetime, exercises } = req.body;
+
+  try {
+    // If the name was modified, update all past instances so they don't fracture the list
+    if (originalName && originalName !== name) {
+      await Workout.updateMany({ name: originalName }, { name: name });
+    }
+
+    const updatedWorkout = await Workout.findByIdAndUpdate(
+      id,
+      { name, datetime, exercises },
+      { returnDocument: 'after', runValidators: true }
+    );
+
+    if (!updatedWorkout) {
+      return res.status(404).json({ message: "Workout routine not found" });
+    }
+
+    res.json(updatedWorkout);
+  } catch (error) {
+    console.error("Update error:", error);
+    res.status(500).json({ message: "Server error updating workout" });
+  }
+});

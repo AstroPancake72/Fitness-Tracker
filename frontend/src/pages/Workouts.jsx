@@ -22,9 +22,21 @@ export default function Workouts() {
     if (!existing) acc.push(current);
     return acc;
   }, []);
+  
+  function editWorkout(routine) {
+    setActiveWorkout({
+      isEditing: true,
+      _id: routine._id,
+      originalDate: routine.datetime, 
+      originalName: routine.name,
+      name: routine.name,
+      exercises: routine.exercises.map(ex => ({ ...ex })) 
+    });
+  }
 
   function startWorkout(baseline) {
     setActiveWorkout({
+      isEditing: false,
       name: baseline.name,
       exercises: baseline.exercises.map(ex => ({
         ...ex,
@@ -73,21 +85,40 @@ export default function Workouts() {
       return;
     }
 
+    const url = activeWorkout.isEditing 
+      ? `http://localhost:5000/api/workouts/${activeWorkout._id}` 
+      : "http://localhost:5000/api/workouts";
+    
+    const method = activeWorkout.isEditing ? "PUT" : "POST";
+    const workoutDate = activeWorkout.isEditing ? activeWorkout.originalDate : new Date();
+
     try {
-      const response = await fetch("http://localhost:5000/api/workouts", {
-        method: "POST",
+      const response = await fetch(url, {
+        method: method,
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
           name: activeWorkout.name,
-          datetime: new Date(),
+          datetime: workoutDate, 
           exercises: validExercises 
         }),
       });
 
       if (response.ok) {
         const saved = await response.json();
-        setWorkouts(prev => [saved, ...prev]);
+        
+        if (activeWorkout.isEditing) {
+          setWorkouts(prev => prev.map(w => {
+          if (w._id === saved._id) return saved;
+          if (activeWorkout.originalName && w.name === activeWorkout.originalName) {
+              return { ...w, name: saved.name };
+            }
+          return w;
+  }));
+} else {
+  setWorkouts(prev => [saved, ...prev]);
+}
+        
         setActiveWorkout(null);
       }
     } catch (err) {
@@ -110,8 +141,7 @@ export default function Workouts() {
         </div>
       )}
 
-      {/* DYNAMIC TITLE: Switches between "My Workouts" and the routine name */}
-      <h1>{activeWorkout ? activeWorkout.name : "My Workouts"}</h1>
+      <h1>{activeWorkout ? (activeWorkout.isEditing ? "Editing Routine" : activeWorkout.name) : "My Workouts"}</h1>
 
       {!activeWorkout ? (
         <div style={{ width: '100%' }}>
@@ -134,6 +164,7 @@ export default function Workouts() {
               </div>
               <div style={{display: 'flex', gap: '10px'}}>
                 <button className="counter" onClick={() => startWorkout(r)}>Start</button>
+                <button className="counter" onClick={() => editWorkout(r)}>Edit</button>
                 <button className="counter" style={{background: '#8B0000'}} onClick={() => openDeleteModal('routine', r._id)}>✕</button>
               </div>
             </div>
@@ -141,7 +172,19 @@ export default function Workouts() {
         </div>
       ) : (
         <div style={sessionBoxStyle}>
-          {/* Removed the redundant <h2> here since it is now in the <h1> above */}
+          
+          {activeWorkout.isEditing && (
+            <div style={{ marginBottom: '15px' }}>
+              <input 
+                className="login-input-style" 
+                value={activeWorkout.name} 
+                onChange={(e) => setActiveWorkout({...activeWorkout, name: e.target.value})} 
+                placeholder="Routine Name"
+                style={{ width: '100%', boxSizing: 'border-box' }}
+              />
+            </div>
+          )}
+
           <div style={{display: 'flex', fontWeight: 'bold', padding: '10px 10px 5px 10px', textAlign: 'left', fontSize: '14px'}}>
             <span style={{flex: 2}}>name</span>
             <span style={{flex: 1}}>weight</span>
@@ -159,7 +202,6 @@ export default function Workouts() {
               <input type="number" value={ex.reps} onChange={(e) => updateExercise(i, 'reps', e.target.value)} style={{flex: 1, width: '40px'}} />
               <input type="number" value={ex.sets} onChange={(e) => updateExercise(i, 'sets', e.target.value)} style={{flex: 1, width: '40px'}} />
               <input type="number" value={ex.time} onChange={(e) => updateExercise(i, 'time', e.target.value)} style={{flex: 1, width: '40px'}} />
-              {/* Centered white X button */}
               <button onClick={() => openDeleteModal('exercise', i)} style={deleteBtnStyle}>✕</button>
             </div>
           ))}
@@ -171,7 +213,9 @@ export default function Workouts() {
 
           <div style={{display: 'flex', gap: '10px'}}>
             <button className="counter" style={{background: '#8B0000', flex: 1}} onClick={() => setActiveWorkout(null)}>Exit</button>
-            <button className="counter" style={{flex: 2}} onClick={saveWorkout}>Save Workout</button>
+            <button className="counter" style={{flex: 2}} onClick={saveWorkout}>
+              {activeWorkout.isEditing ? "Save Edits" : "Save Workout"}
+            </button>
           </div>
         </div>
       )}
