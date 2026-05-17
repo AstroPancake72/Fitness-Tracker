@@ -57,6 +57,21 @@ const workoutSchema = new mongoose.Schema({
   ]
 });
 
+const profileSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
+  age: { type: Number, default: null },
+  height: { type: Number, default: null },
+  weight: { type: Number, default: null },
+  dietaryRestrictions: { type: [String], default: [] },
+  
+  fitnessGoal: { type: String, default: "Maintain fitness" },
+  bio: { type: String, default: "" },
+
+  goalsVisibleToFriends: { type: Boolean, default: false },
+}, { timestamps: true });
+
+const Profile = mongoose.model("Profile", profileSchema);
+
 const Workout = mongoose.model("Workout", workoutSchema);
 // 2. Signup Route
 app.post("/api/signup", async (req, res) => {
@@ -127,6 +142,60 @@ app.delete("/api/workouts/:id", async (req, res) => {
     res.json({ message: "Workout deleted successfully" });
   } catch (err) {
     res.status(500).json({ message: "Failed to delete" });
+  }
+});
+
+app.get("/api/profile", async (req, res) => {
+  if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+  try {
+    let profile = await Profile.findOne({ userId: req.session.userId });
+    if (!profile) {
+      profile = await Profile.create({ userId: req.session.userId });
+    }
+
+    res.json(profile);
+  } catch (err) {
+    console.error("Profile fetch error:", err);
+    res.status(500).json({ message: "Failed to fetch profile" });
+  }
+});
+
+app.put("/api/profile", async (req, res) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ message: "Not logged in" });
+  }
+
+  try {
+    const {
+      fullName,
+      age,
+      height,
+      weight,
+      dietaryRestrictions,
+      fitnessGoal,
+      bio,
+      goalsVisibleToFriends,
+    } = req.body;
+
+    const updatedProfile = await Profile.findOneAndUpdate(
+      { userId: req.session.userId },
+      {
+        fullName,
+        age,
+        height,
+        weight,
+        dietaryRestrictions,
+        fitnessGoal,
+        bio,
+        goalsVisibleToFriends,
+      },
+      { new: true, upsert: true, runValidators: true }
+    );
+
+    res.json(updatedProfile);
+  } catch (err) {
+    console.error("Profile save error:", err);
+    res.status(500).json({ message: "Failed to save profile" });
   }
 });
 
