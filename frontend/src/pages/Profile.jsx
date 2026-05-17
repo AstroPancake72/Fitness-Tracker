@@ -71,11 +71,14 @@ export default function Profile() {
         body: JSON.stringify(payload),
       });
 
-      if (res.ok) {
+      const data = await res.json();
+
+    if (res.ok) {
         setMessage("Profile saved!");
-      } else {
-        setMessage("Profile save failed.");
-      }
+    } else {
+        console.log("Profile save error:", data);
+        setMessage(data.message || "Profile save failed.");
+    }
     } catch (err) {
       console.error(err);
       setMessage("Server error.");
