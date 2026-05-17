@@ -42,12 +42,14 @@ function App() {
 
           {page === 'workouts' ? (
             <Workouts />
+          ) : page === 'profile' ? (
+            <Profile />
           ) : (
             <div style={{ padding: 24 }}>
               <h1>Welcome to Fitness Tracker</h1>
               <p>You are logged in.</p>
             </div>
-          )}
+    )}
         </div>
       ) : (
         page === 'login' ? (
