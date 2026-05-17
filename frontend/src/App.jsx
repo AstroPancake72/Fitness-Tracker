@@ -6,6 +6,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Workouts from "./pages/Workouts";
 import "./App.css";
+import Profile from "./pages/Profile";
 
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -35,6 +36,7 @@ function App() {
         <div>
           <nav style={{ display: 'flex', gap: 12, padding: 12, justifyContent: 'center' }}>
             <button onClick={() => setPage('workouts')} className="counter">Workouts</button>
+            <button onClick={() => setPage('profile')} className="counter">Profile</button>
             <button onClick={() => { setLoggedIn(false); setPage('login'); }} className="counter">Logout</button>
           </nav>
 
