@@ -57,6 +57,21 @@ const workoutSchema = new mongoose.Schema({
   ]
 });
 
+const profileSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
+  age: { type: Number, default: null },
+  height: { type: Number, default: null },
+  weight: { type: Number, default: null },
+  dietaryRestrictions: { type: [String], default: [] },
+  
+  fitnessGoal: { type: String, default: "Maintain fitness" },
+  bio: { type: String, default: "" },
+
+  goalsVisibleToFriends: { type: Boolean, default: false },
+}, { timestamps: true });
+
+const Profile = mongoose.model("Profile", profileSchema);
+
 const Workout = mongoose.model("Workout", workoutSchema);
 // 2. Signup Route
 app.post("/api/signup", async (req, res) => {
@@ -130,6 +145,60 @@ app.delete("/api/workouts/:id", async (req, res) => {
   }
 });
 
+app.get("/api/profile", async (req, res) => {
+  if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+  try {
+    let profile = await Profile.findOne({ userId: req.session.userId });
+    if (!profile) {
+      profile = await Profile.create({ userId: req.session.userId });
+    }
+
+    res.json(profile);
+  } catch (err) {
+    console.error("Profile fetch error:", err);
+    res.status(500).json({ message: "Failed to fetch profile" });
+  }
+});
+
+app.put("/api/profile", async (req, res) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ message: "Not logged in" });
+  }
+
+  try {
+    const {
+      fullName,
+      age,
+      height,
+      weight,
+      dietaryRestrictions,
+      fitnessGoal,
+      bio,
+      goalsVisibleToFriends,
+    } = req.body;
+
+    const updatedProfile = await Profile.findOneAndUpdate(
+      { userId: req.session.userId },
+      {
+        fullName,
+        age,
+        height,
+        weight,
+        dietaryRestrictions,
+        fitnessGoal,
+        bio,
+        goalsVisibleToFriends,
+      },
+      { new: true, upsert: true, runValidators: true }
+    );
+
+    res.json(updatedProfile);
+  } catch (err) {
+    console.error("Profile save error:", err);
+    res.status(500).json({ message: "Failed to save profile" });
+  }
+});
+
 app.listen(5000, () => {
   console.log("Server running on port 5000");
 });
@@ -156,5 +225,32 @@ app.get("/api/workouts", async (req, res) => {
     res.json(userWorkouts);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch workouts" });
+  }
+});
+
+app.put('/api/workouts/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, originalName, datetime, exercises } = req.body;
+
+  try {
+    // If the name was modified, update all past instances so they don't fracture the list
+    if (originalName && originalName !== name) {
+      await Workout.updateMany({ name: originalName }, { name: name });
+    }
+
+    const updatedWorkout = await Workout.findByIdAndUpdate(
+      id,
+      { name, datetime, exercises },
+      { returnDocument: 'after', runValidators: true }
+    );
+
+    if (!updatedWorkout) {
+      return res.status(404).json({ message: "Workout routine not found" });
+    }
+
+    res.json(updatedWorkout);
+  } catch (error) {
+    console.error("Update error:", error);
+    res.status(500).json({ message: "Server error updating workout" });
   }
 });

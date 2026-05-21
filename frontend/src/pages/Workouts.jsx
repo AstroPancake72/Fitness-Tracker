@@ -32,9 +32,21 @@ export default function Workouts() {
     }
     return acc;
   }, []);
+  
+  function editWorkout(routine) {
+    setActiveWorkout({
+      isEditing: true,
+      _id: routine._id,
+      originalDate: routine.datetime, 
+      originalName: routine.name,
+      name: routine.name,
+      exercises: routine.exercises.map(ex => ({ ...ex })) 
+    });
+  }
 
   function startWorkout(baseline) {
     setActiveWorkout({
+      isEditing: false,
       name: baseline.name,
       exercises: baseline.exercises.map(ex => ({
         ...ex,
@@ -86,23 +98,27 @@ export default function Workouts() {
       return;
     }
 
+    const url = activeWorkout.isEditing 
+      ? `http://localhost:5000/api/workouts/${activeWorkout._id}` 
+      : "http://localhost:5000/api/workouts";
+    
+    const method = activeWorkout.isEditing ? "PUT" : "POST";
+    const workoutDate = activeWorkout.isEditing ? activeWorkout.originalDate : new Date();
+
     try {
-      const response = await fetch("http://localhost:5000/api/workouts", {
-        method: "POST",
+      const response = await fetch(url, {
+        method: method,
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
           name: activeWorkout.name,
-          datetime: new Date(),
+          datetime: workoutDate, 
           exercises: validExercises 
         }),
       });
 
       if (response.ok) {
         const saved = await response.json();
-<<<<<<< Updated upstream
-        setWorkouts(prev => [saved, ...prev]);
-=======
         
         if (activeWorkout.isEditing) {
           setWorkouts(prev => prev.map(w => {
@@ -116,7 +132,6 @@ export default function Workouts() {
           setWorkouts(prev => [saved, ...prev]);
         }
         
->>>>>>> Stashed changes
         setActiveWorkout(null);
         if (!activeWorkout.isEditing) {
           setCurrentTab('history');
@@ -142,10 +157,6 @@ export default function Workouts() {
         </div>
       )}
 
-<<<<<<< Updated upstream
-      {/* DYNAMIC TITLE: Switches between "My Workouts" and the routine name */}
-      <h1>{activeWorkout ? activeWorkout.name : "My Workouts"}</h1>
-=======
       <h1>{activeWorkout ? (activeWorkout.isEditing ? "Editing Routine" : activeWorkout.name) : (currentTab === 'routines' ? "My Workouts" : "Workout History")}</h1>
 
       {!activeWorkout && (
@@ -164,7 +175,6 @@ export default function Workouts() {
           </button>
         </div>
       )}
->>>>>>> Stashed changes
 
       {!activeWorkout ? (
         currentTab === 'routines' ? (
@@ -184,28 +194,14 @@ export default function Workouts() {
               <div key={r._id} style={itemStyle}>
                <div style={{textAlign: 'left'}}>
                 <div style={{fontWeight: 'bold', fontSize: '18px'}}>{r.name}</div>
-<<<<<<< Updated upstream
-                <div style={{fontSize: '12px', color: '#666'}}>Last: {new Date(r.datetime).toLocaleDateString()}</div>
-              </div>
-              <div style={{display: 'flex', gap: '10px'}}>
-                <button className="counter" onClick={() => startWorkout(r)}>Start</button>
-                <button className="counter" style={{background: '#8B0000'}} onClick={() => openDeleteModal('routine', r._id)}>✕</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div style={sessionBoxStyle}>
-          {/* Removed the redundant <h2> here since it is now in the <h1> above */}
-=======
               <div style={{fontSize: '12px', color: '#666'}}>Last: {new Date(r.datetime).toLocaleDateString()}</div>
-                </div>
+               </div>
                 <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
                <button className="counter" onClick={() => startWorkout(r)}>Start</button>
               <button className="counter" onClick={() => editWorkout(r)}>Edit</button>
               <button className="counter" style={{background: '#8B0000', ...deleteBtnStyle}} onClick={() => openDeleteModal('routine', r._id)}>✕</button>
-                </div>
-                </div>
+              </div>
+              </div>
             ))}
           </div>
         ) : (
@@ -282,7 +278,6 @@ export default function Workouts() {
             </div>
           )}
 
->>>>>>> Stashed changes
           <div style={{display: 'flex', fontWeight: 'bold', padding: '10px 10px 5px 10px', textAlign: 'left', fontSize: '14px'}}>
             <span style={{flex: 2}}>name</span>
             <span style={{flex: 1}}>weight</span>
@@ -300,7 +295,6 @@ export default function Workouts() {
               <input type="number" value={ex.reps} onChange={(e) => updateExercise(i, 'reps', e.target.value)} style={{flex: 1, width: '40px'}} />
               <input type="number" value={ex.sets} onChange={(e) => updateExercise(i, 'sets', e.target.value)} style={{flex: 1, width: '40px'}} />
               <input type="number" value={ex.time} onChange={(e) => updateExercise(i, 'time', e.target.value)} style={{flex: 1, width: '40px'}} />
-              {/* Centered white X button */}
               <button onClick={() => openDeleteModal('exercise', i)} style={deleteBtnStyle}>✕</button>
             </div>
           ))}
@@ -312,7 +306,9 @@ export default function Workouts() {
 
           <div style={{display: 'flex', gap: '10px', }}>
             <button className="counter" style={{background: '#8B0000', flex: 1}} onClick={() => setActiveWorkout(null)}>Exit</button>
-            <button className="counter" style={{flex: 2}} onClick={saveWorkout}>Save Workout</button>
+            <button className="counter" style={{flex: 2}} onClick={saveWorkout}>
+              {activeWorkout.isEditing ? "Save Edits" : "Save Workout"}
+            </button>
           </div>
         </div>
       )}

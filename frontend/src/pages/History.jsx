@@ -5,16 +5,13 @@ export default function History() {
   const [history, setHistory] = useState([])
   const [expandedWorkoutId, setExpandedWorkoutId] = useState(null)
   
-  // Custom integrated delete modal state
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, targetId: null })
 
-  // Fetch all logged workouts from the backend on load
   useEffect(() => {
     fetch("http://localhost:5000/api/workouts", { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
-          // Sort by date descending (most recent first)
           const sortedData = data.sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
           setHistory(sortedData);
         }
@@ -22,21 +19,20 @@ export default function History() {
       .catch(err => console.error("History load error:", err));
   }, [])
 
-  // Toggle expand/collapse for viewing a specific workout's details
   const toggleViewWorkout = (id) => {
     if (expandedWorkoutId === id) {
-      setExpandedWorkoutId(null); // Collapse if clicked again
+      setExpandedWorkoutId(null); 
     } else {
-      setExpandedWorkoutId(id);   // Expand selected
+      setExpandedWorkoutId(id);   
     }
   }
 
-  // Open the integrated delete confirmation modal
+
   const openDeleteModal = (id) => {
     setDeleteModal({ isOpen: true, targetId: id });
   }
 
-  // Handle the actual deletion from the database
+
   const confirmDelete = async () => {
     try {
       const res = await fetch(`http://localhost:5000/api/workouts/${deleteModal.targetId}`, {
@@ -44,7 +40,7 @@ export default function History() {
         credentials: 'include'
       });
       if (res.ok) {
-        // Remove from the local state list immediately
+        
         setHistory(prev => prev.filter(w => w._id !== deleteModal.targetId));
         if (expandedWorkoutId === deleteModal.targetId) {
           setExpandedWorkoutId(null);
@@ -60,7 +56,6 @@ export default function History() {
 
   return (
     <div className="login-container" style={{ maxWidth: '800px' }}>
-      {/* INTEGRATED DELETE WARNING MODAL */}
       {deleteModal.isOpen && (
         <div style={modalOverlayStyle}>
           <div style={modalBoxStyle}>
@@ -84,7 +79,6 @@ export default function History() {
             const isExpanded = expandedWorkoutId === workout._id;
             return (
               <div key={workout._id} style={historyCardStyle}>
-                {/* CARD HEADER */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ textAlign: 'left' }}>
                     <div style={{ fontWeight: 'bold', fontSize: '18px' }}>{workout.name}</div>
@@ -93,7 +87,6 @@ export default function History() {
                     </div>
                   </div>
                   
-                  {/* ACTIONS */}
                   <div style={{ display: 'flex', gap: '10px' }}>
                     <button className="counter" onClick={() => toggleViewWorkout(workout._id)}>
                       {isExpanded ? "Hide" : "View"}
@@ -102,7 +95,6 @@ export default function History() {
                   </div>
                 </div>
 
-                {/* EXPANDED DETAILS (READ-ONLY VIEW) */}
                 {isExpanded && (
                   <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #38422B' }}>
                     <div style={{ display: 'flex', fontWeight: 'bold', paddingBottom: '5px', fontSize: '13px', color: '#38422B' }}>
@@ -133,7 +125,6 @@ export default function History() {
   )
 }
 
-// Layout Styles matching your application's palette
 const historyCardStyle = { 
   background: '#F5F1E8', 
   padding: '15px 20px', 
