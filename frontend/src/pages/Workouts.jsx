@@ -7,6 +7,9 @@ export default function Workouts() {
   const [newRoutineName, setNewRoutineName] = useState("")
   const [showAddRoutine, setShowAddRoutine] = useState(false)
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, targetId: null, type: null, index: null })
+  const [showNameWarning, setShowNameWarning] = useState(false); 
+  const [showExerciseWarning, setShowExerciseWarning] = useState(false);
+
 
   useEffect(() => {
     fetch("http://localhost:5000/api/workouts", { credentials: 'include' })
@@ -83,15 +86,20 @@ export default function Workouts() {
     const updated = [...activeWorkout.exercises];
     updated[index][field] = (field === 'name') ? value : Number(value);
     setActiveWorkout({ ...activeWorkout, exercises: updated });
+    
+    if (field === 'name' && value.trim() !== "") {
+      setShowExerciseWarning(false);
+    }
   }
 
-  async function saveWorkout() {
+async function saveWorkout() {
     const validExercises = activeWorkout.exercises.filter(ex => ex.name.trim() !== "");
 
     if (validExercises.length === 0) {
-      alert("Please enter a name for at least one exercise before saving.");
+      setShowExerciseWarning(true);
       return;
     }
+
 
     const url = activeWorkout.isEditing 
       ? `http://localhost:5000/api/workouts/${activeWorkout._id}` 
@@ -128,7 +136,6 @@ export default function Workouts() {
         }
         
         setActiveWorkout(null);
-        // NOTE: Redirection handling can be updated to use useNavigate() to jump to /history if routing is configured
       }
     } catch (err) {
       console.error("Save error:", err);
@@ -159,10 +166,41 @@ export default function Workouts() {
               + Create New Routine
             </button>
           ) : (
-            <div style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
-              <input className="login-input-style" placeholder="Routine Name..." value={newRoutineName} onChange={(e) => setNewRoutineName(e.target.value)} />
-              <button className="counter" onClick={() => { setActiveWorkout({name: newRoutineName, exercises: [{name: "", weight: 0, reps: 0, sets: 0, time: 0}]}); setShowAddRoutine(false); setNewRoutineName(""); }}>Add</button>
-            </div>
+           <div>
+    <div style={{ marginTop: '20px', marginBottom: '10px', display: 'flex', gap: '20px' }}>
+      <input 
+        className="login-input-style" 
+        placeholder="Routine Name..." 
+        value={newRoutineName} 
+        onChange={(e) => {
+          setNewRoutineName(e.target.value);
+          if (e.target.value.trim()) setShowNameWarning(false); 
+        }} 
+        style={{ marginTop: '-5px' , marginBottom: '15px'}} 
+      />
+      <button 
+        className="counter" 
+        onClick={() => { 
+          if (!newRoutineName.trim()) {
+            setShowNameWarning(true);
+            return;
+          }
+          
+          setActiveWorkout({name: newRoutineName, exercises: [{name: "", weight: 0, reps: 0, sets: 0, time: 0}]}); 
+          setShowAddRoutine(false); 
+          setShowNameWarning(false);
+        }}
+      >
+        Add
+      </button>
+    </div>
+    
+    {showNameWarning && (
+      <p style={{ color: '#8B0000', fontSize: '14px', margin: '-5px 0 15px 0', textAlign: 'left', fontWeight: 'bold' }}>
+        Please add a routine name before clicking Add.
+      </p>
+    )}
+  </div>
           )}
 
           {routines.map(r => (
@@ -218,6 +256,12 @@ export default function Workouts() {
                   onClick={() => setActiveWorkout({...activeWorkout, exercises: [...activeWorkout.exercises, {name: "", weight: 0, reps: 0, sets: 0, time: 0}]})}>
             + Add Exercise
           </button>
+
+          {showExerciseWarning && (
+            <p style={{ color: '#8B0000', fontSize: '14px', margin: '0 0 15px 0', textAlign: 'center', fontWeight: 'bold' }}>
+              Please enter a name for at least one exercise before saving.
+            </p>
+          )}
 
           <div style={{display: 'flex', gap: '10px'}}>
             <button className="counter" style={{background: '#8B0000', flex: 1}} onClick={() => setActiveWorkout(null)}>Exit</button>

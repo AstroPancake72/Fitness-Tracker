@@ -5,7 +5,7 @@ export default function History() {
   const [workouts, setWorkouts] = useState([])
   const [expandedHistoryId, setExpandedHistoryId] = useState(null)
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, targetId: null })
-
+    const [searchQuery, setSearchQuery] = useState("")
   
   useEffect(() => {
     fetch("http://localhost:5000/api/workouts", { credentials: 'include' })
@@ -13,6 +13,12 @@ export default function History() {
       .then(data => { if (Array.isArray(data)) setWorkouts(data); })
       .catch(err => console.error("Load error:", err));
   }, [])
+
+  const filteredWorkouts = workouts.filter(log => {
+  if (!searchQuery.trim()) return true;
+  const query = searchQuery.toLowerCase();
+  return log.name && log.name.toLowerCase().includes(query);
+});
 
   const openDeleteModal = (id) => {
     setDeleteModal({ isOpen: true, targetId: id });
@@ -47,11 +53,30 @@ export default function History() {
 
       <h1>Workout History</h1>
 
+      <div style={{ marginBottom: '25px', marginTop: '15px', width: '100%' }}>
+        <input
+          type="text"
+          placeholder="Search by exercise name (e.g. curl, lift...)"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '12px 15px',
+            borderRadius: '10px',
+            border: '1px solid #38422B',
+            background: '#F5F1E8',
+            fontSize: '15px',
+            boxSizing: 'border-box',
+            outline: 'none'
+          }}
+        />
+      </div>
+
       <div style={{ width: '100%' }}>
-        {workouts.length === 0 ? (
-          <p style={{textAlign: 'center', color: '#666'}}>No logged workouts found.</p>
+        {filteredWorkouts.length === 0 ? (
+          <p style={{textAlign: 'center', color: '#666'}}>No matching workout logs found.</p>
         ) : (
-          workouts.map(log => {
+          filteredWorkouts.map(log => {
             const isExpanded = expandedHistoryId === log._id;
             return (
               <div key={log._id} style={{...itemStyle, flexDirection: 'column', alignItems: 'stretch', gap: '10px'}}>
