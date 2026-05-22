@@ -7,7 +7,8 @@ import Signup from "./pages/Signup";
 import Workouts from "./pages/Workouts";
 import "./App.css";
 import Profile from "./pages/Profile";
-import History from './pages/History'
+import History from './pages/History';
+import DietSuggestions from "./pages/DietSuggestions";
 
 
 function App() {
@@ -41,6 +42,7 @@ function App() {
             <button onClick={() => setPage('history')} className="counter">History</button>
             <button onClick={() => setPage('profile')} className="counter">Profile</button>
             <button onClick={() => { setLoggedIn(false); setPage('login'); }} className="counter">Logout</button>
+            <button onClick={() => setPage('diet')} className="counter"> Diet Suggestions </button>
           </nav>
 
           {page === 'workouts' ? (
@@ -49,6 +51,8 @@ function App() {
             <History />
           ): page === 'profile' ? (
             <Profile />
+          ) : page === 'diet' ? (
+            <DietSuggestions />
           ) : (
             <div style={{ padding: 24 }}>
               <h1>Welcome to Fitness Tracker</h1>

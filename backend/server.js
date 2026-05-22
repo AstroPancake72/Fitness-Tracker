@@ -305,6 +305,73 @@ app.put("/api/profile", async (req, res) => {
   }
 });
 
+function generateDietSuggestions(profile) {
+  const weight = Number(profile.weight);
+  const restrictions = profile.dietaryRestrictions || [];
+
+  const calories = Math.round(weight * 14);
+  const protein = Math.round(weight * 0.8);
+  const fat = Math.round((calories * 0.25) / 9);
+  const carbs = Math.round((calories - protein * 4 - fat * 9) / 4);
+
+  let meals = [
+    "Eggs with whole grain toast and fruit",
+    "Chicken rice bowl with vegetables",
+    "Greek yogurt with berries",
+    "Salmon with sweet potato and greens"
+  ];
+
+  if (restrictions.includes("vegan")) {
+    meals = [
+      "Oatmeal with almond butter and fruit",
+      "Lentil rice bowl with vegetables",
+      "Tofu stir fry with quinoa",
+      "Chickpea salad wrap"
+    ];
+  } else if (restrictions.includes("vegetarian")) {
+    meals = [
+      "Greek yogurt with berries",
+      "Paneer or tofu bowl with vegetables",
+      "Egg and avocado toast",
+      "Chickpea salad wrap"
+    ];
+  } else if (restrictions.includes("gluten-free")) {
+    meals = [
+      "Eggs with potatoes and fruit",
+      "Chicken rice bowl",
+      "Salmon with quinoa and vegetables",
+      "Greek yogurt with berries"
+    ];
+  }
+
+  return {
+    calories,
+    macros: { protein, carbs, fat },
+    meals,
+    notes: [
+      "Include protein in every meal.",
+      "Drink water throughout the day.",
+      "Adjust portions based on workout intensity."
+    ]
+  };
+}
+
+app.get("/api/diet-suggestions", async (req, res) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ message: "Not logged in" });
+  }
+
+  const profile = await Profile.findOne({ userId: req.session.userId });
+
+  if (!profile || !profile.age || !profile.height || !profile.weight) {
+    return res.status(400).json({
+      message: "Complete your profile before viewing diet suggestions."
+    });
+  }
+
+  res.json(generateDietSuggestions(profile));
+});
+
 app.listen(5000, () => {
   console.log("Server running on port 5000");
 });
