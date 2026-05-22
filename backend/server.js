@@ -59,11 +59,13 @@ const workoutSchema = new mongoose.Schema({
 
 const profileSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
+
+  fullName: { type: String, default: "" },
+
   age: { type: Number, default: null },
   height: { type: Number, default: null },
   weight: { type: Number, default: null },
   dietaryRestrictions: { type: [String], default: [] },
-  
   bio: { type: String, default: "" },
 }, { timestamps: true });
 
@@ -234,7 +236,7 @@ app.put('/api/workouts/:id', async (req, res) => {
     const updatedWorkout = await Workout.findByIdAndUpdate(
       id,
       { name, datetime, exercises },
-      { returnDocument: 'after', runValidators: true }
+      { new: true, runValidators: true }
     );
 
     if (!updatedWorkout) {
