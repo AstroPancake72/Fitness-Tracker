@@ -72,15 +72,14 @@ const workoutSchema = new mongoose.Schema({
 
 const profileSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
+
+  fullName: { type: String, default: "" },
+
   age: { type: Number, default: null },
   height: { type: Number, default: null },
   weight: { type: Number, default: null },
   dietaryRestrictions: { type: [String], default: [] },
-  
-  fitnessGoal: { type: String, default: "Maintain fitness" },
   bio: { type: String, default: "" },
-
-  goalsVisibleToFriends: { type: Boolean, default: false },
 }, { timestamps: true });
 
 const Profile = mongoose.model("Profile", profileSchema);
@@ -283,9 +282,7 @@ app.put("/api/profile", async (req, res) => {
       height,
       weight,
       dietaryRestrictions,
-      fitnessGoal,
       bio,
-      goalsVisibleToFriends,
     } = req.body;
 
     const updatedProfile = await Profile.findOneAndUpdate(
@@ -296,9 +293,7 @@ app.put("/api/profile", async (req, res) => {
         height,
         weight,
         dietaryRestrictions,
-        fitnessGoal,
         bio,
-        goalsVisibleToFriends,
       },
       { new: true, upsert: true, runValidators: true }
     );
@@ -352,7 +347,7 @@ app.put('/api/workouts/:id', async (req, res) => {
     const updatedWorkout = await Workout.findByIdAndUpdate(
       id,
       { name, datetime, exercises },
-      { returnDocument: 'after', runValidators: true }
+      { new: true, runValidators: true }
     );
 
     if (!updatedWorkout) {
