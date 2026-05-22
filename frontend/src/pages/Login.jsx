@@ -35,17 +35,28 @@ export default function Login({ onLogin, onShowSignup }) {
   }
   
 
-  function checkCode(e) {
-    e.preventDefault();
+  async function checkCode(e) {
+  e.preventDefault();
 
-    //fake 2FA code
-    if (code === "123456") {
+  try {
+    const response = await fetch("http://localhost:5000/api/verify-2fa", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, code }), // Sends the email and the typed code
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
       setMessage("");
       onLogin();
     } else {
-      setMessage("Wrong authentication code");
+      setMessage(data.message || "Wrong authentication code");
     }
+  } catch (error) {
+    setMessage("Server error. Please try again.");
   }
+}
 
   if (showCodePage) {
     return (
