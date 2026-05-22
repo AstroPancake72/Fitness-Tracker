@@ -160,7 +160,6 @@ app.post("/api/login", async (req, res) => {
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
-    req.session.userId = user._id;
 
     // Generate a random 6-digit code for 2fa
     const code = Math.floor(Math.random() * 1000000).toString().padStart(6, '0');
@@ -204,6 +203,7 @@ app.post("/api/verify-2fa", async (req, res) => {
     // Clear the code from the database so it can't be reused
     user.twoFactorCode = undefined;
     user.twoFactorExpires = undefined;
+    req.session.userId = user._id;
     await user.save();
 
     res.status(200).json({ message: "Login successful", user: { email: user.email } });
