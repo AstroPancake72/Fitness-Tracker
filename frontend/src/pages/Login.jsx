@@ -41,6 +41,7 @@ export default function Login({ onLogin, onShowSignup }) {
   try {
     const response = await fetch("http://localhost:5000/api/verify-2fa", {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, code }), // Sends the email and the typed code
     });
