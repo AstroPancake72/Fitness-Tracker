@@ -2,27 +2,28 @@ import { useEffect, useState } from "react";
 import "../App.css";
 
 export default function Profile() {
+  const [isEditing, setIsEditing] = useState(false);
+  const [message, setMessage] = useState("");
   const [profile, setProfile] = useState({
     fullName: "",
     age: "",
     height: "",
     weight: "",
     dietaryRestrictions: "",
-    fitnessGoal: "Maintain fitness",
     bio: "",
     goalsVisibleToFriends: false,
   });
 
-  const [message, setMessage] = useState("");
-
   useEffect(() => {
-    async function loadProfile() {
-      try {
-        const res = await fetch("http://localhost:5000/api/profile", {
-          credentials: "include",
-        });
+    loadProfile();
+  }, []);
 
-        const data = await res.json();
+    async function loadProfile() {
+      const res = await fetch("http://localhost:5000/api/profile", {
+      credentials: "include",
+    })
+
+    const data = await res.json();
 
         if (res.ok) {
           setProfile({
@@ -31,29 +32,22 @@ export default function Profile() {
             height: data.height || "",
             weight: data.weight || "",
             dietaryRestrictions: data.dietaryRestrictions?.join(", ") || "",
-            fitnessGoal: data.fitnessGoal || "Maintain fitness",
             bio: data.bio || "",
-            goalsVisibleToFriends: data.goalsVisibleToFriends || false,
           });
+        } else {
+          setMessage(data.message || "Could not load profile.");
         }
-      } catch (err) {
-        console.error(err);
-        setMessage("Could not load profile.");
       }
+
+    function updateField(field, value) {
+      setProfile({ ...profile, [field]: value });
     }
 
-    loadProfile();
-  }, []);
-
-  function updateField(field, value) {
-    setProfile({ ...profile, [field]: value });
-  }
-
-  async function saveProfile(e) {
-    e.preventDefault();
+    async function saveProfile(e) {
+      e.preventDefault();
 
     const payload = {
-      ...profile,
+      fullName: profile.fullName,
       age: profile.age ? Number(profile.age) : null,
       height: profile.height ? Number(profile.height) : null,
       weight: profile.weight ? Number(profile.weight) : null,
@@ -61,9 +55,9 @@ export default function Profile() {
         .split(",")
         .map(item => item.trim())
         .filter(item => item !== ""),
+      bio: profile.bio,
     };
 
-    try {
       const res = await fetch("http://localhost:5000/api/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -75,19 +69,40 @@ export default function Profile() {
 
     if (res.ok) {
         setMessage("Profile saved!");
+        setIsEditing(false);
+        loadProfile();
     } else {
-        console.log("Profile save error:", data);
         setMessage(data.message || "Profile save failed.");
-    }
-    } catch (err) {
-      console.error(err);
-      setMessage("Server error.");
-    }
+    }    
+  }
+
+if (!isEditing) {
+  return (
+    <div className="login-container" style={{ maxWidth: "700px" }}>
+      <h1>User Profile</h1>
+
+
+        <div style={profileCardStyle}>
+          <p><strong>Full Name:</strong> {profile.fullName || "Not provided"}</p>
+          <p><strong>Age:</strong> {profile.age || "Not provided"}</p>
+          <p><strong>Height:</strong> {profile.height || "Not provided"}</p>
+          <p><strong>Weight:</strong> {profile.weight || "Not provided"}</p>
+          <p><strong>Dietary Restrictions:</strong> {profile.dietaryRestrictions || "None"}</p>
+          <p><strong>Bio:</strong> {profile.bio || "Not provided"}</p>
+        </div>
+
+        <button className="counter" onClick={() => setIsEditing(true)}>
+          Edit Profile
+        </button>
+
+        {message && <p>{message}</p>}
+      </div>
+    );
   }
 
   return (
     <div className="login-container" style={{ maxWidth: "700px" }}>
-      <h1>User Profile</h1>
+      <h1>Edit Profile</h1>
 
       <form onSubmit={saveProfile}>
         <input
@@ -125,37 +140,34 @@ export default function Profile() {
           onChange={(e) => updateField("dietaryRestrictions", e.target.value)}
         />
 
-        <select
-          value={profile.fitnessGoal}
-          onChange={(e) => updateField("fitnessGoal", e.target.value)}
-        >
-          <option>Maintain fitness</option>
-          <option>Lose weight</option>
-          <option>Gain muscle</option>
-          <option>Increase strength</option>
-          <option>Improve endurance</option>
-        </select>
-
         <textarea
           placeholder="Short bio"
           value={profile.bio}
           onChange={(e) => updateField("bio", e.target.value)}
-          style={{ minHeight: "90px" }}
         />
 
-        <label style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-          <input
-            type="checkbox"
-            checked={profile.goalsVisibleToFriends}
-            onChange={(e) => updateField("goalsVisibleToFriends", e.target.checked)}
-          />
-          Allow friends to see my goals
-        </label>
+        <div style={{ display: "flex", gap: "10px" }}>
+          <button type="button" className="counter" onClick={() => setIsEditing(false)}>
+            Cancel
+          </button>
 
-        <button type="submit">Save Profile</button>
+          <button type="submit" className="counter">
+            Save Profile
+          </button>
+        </div>
       </form>
 
       {message && <p>{message}</p>}
     </div>
   );
 }
+
+const profileCardStyle = {
+  background: "#F5F1E8",
+  border: "2px solid #38422B",
+  borderRadius: "20px",
+  padding: "24px",
+  marginBottom: "20px",
+  textAlign: "left",
+  fontSize: "18px",
+};
