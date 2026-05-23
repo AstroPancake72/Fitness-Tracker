@@ -25,7 +25,7 @@ export default function Workouts() {
     if (existingIndex === -1) {
       acc.push(current);
     } else {
-      if (new Date(current.datetime) < new Date(acc[existingIndex].datetime)) {
+      if (new Date(current.datetime) > new Date(acc[existingIndex].datetime)) {
         acc[existingIndex] = current;
       }
     }
