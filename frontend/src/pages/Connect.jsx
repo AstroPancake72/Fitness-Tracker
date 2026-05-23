@@ -2,61 +2,84 @@ import { useEffect, useState } from "react";
 import "../App.css";
 
 export default function Connect() {
+  const [activeTab, setActiveTab] = useState("discover");
   const [users, setUsers] = useState([]);
+  const [requests, setRequests] = useState([]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [connectionStatus, setConnectionStatus] = useState({});
 
   useEffect(() => {
-    fetchUsers();
+    const fetchAll = async () => {
+      try {
+        const [usersRes, requestsRes] = await Promise.all([
+          fetch("http://localhost:5000/api/users", { credentials: "include" }),
+          fetch("http://localhost:5000/api/requests", { credentials: "include" }),
+        ]);
+
+        const usersData = await usersRes.json();
+        const requestsData = await requestsRes.json();
+
+        if (usersRes.ok) {
+          setUsers(usersData);
+          const initialStatus = {};
+          usersData.forEach(user => {
+            if (user.connectionStatus === 'pending') initialStatus[user._id] = 'pending';
+            else if (user.connectionStatus === 'connected') initialStatus[user._id] = 'already';
+          });
+          setConnectionStatus(initialStatus);
+        }
+
+        if (requestsRes.ok) setRequests(requestsData);
+
+      } catch (err) {
+        setMessage("Server error. Could not fetch data.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAll();
   }, []);
 
-  // 1. Fetch potential connections from backend
-  async function fetchUsers() {
-    try {
-      const res = await fetch("http://localhost:5000/api/users", {
-        credentials: "include",
-      });
-      const data = await res.json();
-
-      if (res.ok) {
-        setUsers(data);
-      } else {
-        setMessage(data.message || "Failed to load users.");
-      }
-    } catch (err) {
-      setMessage("Server error. Could not fetch users.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // 2. Handle connection request
   async function handleConnect(targetUserId) {
     try {
-      const res = await fetch("http://localhost:5000/api/connect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
+      const response = await fetch('http://localhost:5000/api/connect', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ targetUserId }),
       });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        setMessage("Connection request sent!");
-        // Update the local state UI to reflect the pending request
-        setUsers(
-          users.map((user) =>
-            user._id === targetUserId ? { ...user, connectionStatus: "pending" } : user
-          )
-        );
-      } else {
-        setMessage(data.message || "Could not send request.");
+      const data = await response.json();
+      if (response.status === 200) {
+        setConnectionStatus(prev => ({ ...prev, [targetUserId]: 'pending' }));
+      } else if (response.status === 400) {
+        setConnectionStatus(prev => ({ ...prev, [targetUserId]: 'already' }));
       }
     } catch (err) {
-      setMessage("Error sending connection request.");
+      console.error("Fetch error:", err);
     }
   }
+
+  async function handleRespond(requesterId, action) {
+    try {
+      const response = await fetch('http://localhost:5000/api/requests/respond', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requesterId, action }),
+      });
+      if (response.ok) {
+        setRequests(prev => prev.filter(r => r._id !== requesterId));
+        if (action === 'accept') {
+          setConnectionStatus(prev => ({ ...prev, [requesterId]: 'already' }));
+        }
+      }
+    } catch (err) {
+      console.error("Respond error:", err);
+    }
+  }
+
+  const connections = users.filter(u => connectionStatus[u._id] === 'already');
 
   return (
     <div className="login-container" style={{ maxWidth: "900px" }}>
@@ -65,53 +88,148 @@ export default function Connect() {
         Find other fitness enthusiasts, share goals, and track progress together.
       </p>
 
+      {/* Tabs */}
+      <div style={tabBarStyle}>
+        {["discover", "requests", "connections"].map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            style={activeTab === tab ? activeTabStyle : tabStyle}
+          >
+            {tab === "discover" && "Discover"}
+            {tab === "requests" && `Requests${requests.length > 0 ? ` (${requests.length})` : ""}`}
+            {tab === "connections" && "My Connections"}
+          </button>
+        ))}
+      </div>
+
       {message && (
-        <div style={{ ...statusMessageStyle, backgroundColor: message.includes("sent") ? "#E2E8DD" : "#F8D7DA" }}>
+        <div style={{ ...statusMessageStyle, backgroundColor: "#F8D7DA" }}>
           {message}
         </div>
       )}
 
       {loading ? (
-        <p>Loading potential connections...</p>
-      ) : users.length === 0 ? (
-        <p>No other users found at the moment!</p>
+        <p>Loading...</p>
       ) : (
-        <div style={gridContainerStyle}>
-          {users.map((user) => (
-            <div key={user._id} style={profileCardStyle}>
-              <h3>{user.fullName || "Anonymous Tracker"}</h3>
-              {user.bio && <p style={{ fontSize: "14px", fontStyle: "italic" }}>"{user.bio}"</p>}
-              
-              <div style={detailsGroupStyle}>
-                {user.age && <span><strong>Age:</strong> {user.age}</span>}
-                {user.dietaryRestrictions?.length > 0 && (
-                  <p style={{ margin: "5px 0 0 0", fontSize: "14px" }}>
-                    <strong>Diet:</strong> {user.dietaryRestrictions.join(", ")}
-                  </p>
-                )}
-              </div>
-
-              {/* Button behavior depending on current connection state */}
-              {user.connectionStatus === "connected" ? (
-                <button className="counter" style={disabledButtonStyle} disabled>
-                  Connected ✓
-                </button>
-              ) : user.connectionStatus === "pending" ? (
-                <button className="counter" style={disabledButtonStyle} disabled>
-                  Request Pending...
-                </button>
-              ) : (
-                <button className="counter" onClick={() => handleConnect(user._id)}>
-                  Connect
-                </button>
+        <>
+          {/* DISCOVER TAB */}
+          {activeTab === "discover" && (
+            <div style={gridContainerStyle}>
+              {users.filter(u => !connectionStatus[u._id] || connectionStatus[u._id] === 'pending').map(user => (
+                <div key={user._id} style={profileCardStyle}>
+                  <h3>{user.fullName || "Anonymous Tracker"}</h3>
+                  {user.bio && <p style={{ fontSize: "14px", fontStyle: "italic" }}>"{user.bio}"</p>}
+                  <div style={detailsGroupStyle}>
+                    {user.age && <span><strong>Age:</strong> {user.age}</span>}
+                    {user.dietaryRestrictions?.length > 0 && (
+                      <p style={{ margin: "5px 0 0 0", fontSize: "14px" }}>
+                        <strong>Diet:</strong> {user.dietaryRestrictions.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                  {(() => {
+                    const status = connectionStatus[user._id];
+                    if (status === 'pending') {
+                      return <button className="counter" style={disabledButtonStyle} disabled>Request Pending...</button>;
+                    }
+                    return (
+                      <button className="counter" onClick={() => handleConnect(user._id)}
+                        style={{ backgroundColor: '#38422B', color: 'white', cursor: 'pointer' }}>
+                        Connect
+                      </button>
+                    );
+                  })()}
+                </div>
+              ))}
+              {users.filter(u => !connectionStatus[u._id] || connectionStatus[u._id] === 'pending').length === 0 && (
+                <p>No new users to discover!</p>
               )}
             </div>
-          ))}
-        </div>
+          )}
+
+          {/* REQUESTS TAB */}
+          {activeTab === "requests" && (
+            <div style={gridContainerStyle}>
+              {requests.length === 0 ? (
+                <p>No incoming requests.</p>
+              ) : requests.map(user => (
+                <div key={user._id} style={profileCardStyle}>
+                  <h3>{user.fullName || "Anonymous Tracker"}</h3>
+                  {user.bio && <p style={{ fontSize: "14px", fontStyle: "italic" }}>"{user.bio}"</p>}
+                  <div style={detailsGroupStyle}>
+                    {user.age && <span><strong>Age:</strong> {user.age}</span>}
+                  </div>
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    <button className="counter"
+                      onClick={() => handleRespond(user._id, 'accept')}
+                      style={{ backgroundColor: '#38422B', color: 'white', cursor: 'pointer', flex: 1 }}>
+                      Accept ✓
+                    </button>
+                    <button className="counter"
+                      onClick={() => handleRespond(user._id, 'decline')}
+                      style={{ backgroundColor: '#cc0000', color: 'white', cursor: 'pointer', flex: 1 }}>
+                      Decline ✗
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* CONNECTIONS TAB */}
+          {activeTab === "connections" && (
+            <div style={gridContainerStyle}>
+              {connections.length === 0 ? (
+                <p>No connections yet. Start connecting!</p>
+              ) : connections.map(user => (
+                <div key={user._id} style={profileCardStyle}>
+                  <h3>{user.fullName || "Anonymous Tracker"}</h3>
+                  {user.bio && <p style={{ fontSize: "14px", fontStyle: "italic" }}>"{user.bio}"</p>}
+                  <div style={detailsGroupStyle}>
+                    {user.age && <span><strong>Age:</strong> {user.age}</span>}
+                    {user.dietaryRestrictions?.length > 0 && (
+                      <p style={{ margin: "5px 0 0 0", fontSize: "14px" }}>
+                        <strong>Diet:</strong> {user.dietaryRestrictions.join(", ")}
+                      </p>
+                    )}
+                  </div>
+                  <button className="counter" style={disabledButtonStyle} disabled>
+                    Connected ✓
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
 }
+
+const tabBarStyle = {
+  display: "flex",
+  gap: "10px",
+  marginBottom: "20px",
+  borderBottom: "2px solid #38422B",
+  paddingBottom: "10px",
+};
+
+const tabStyle = {
+  padding: "8px 20px",
+  borderRadius: "20px",
+  border: "2px solid #38422B",
+  background: "transparent",
+  color: "#38422B",
+  cursor: "pointer",
+  fontWeight: "600",
+};
+
+const activeTabStyle = {
+  ...tabStyle,
+  background: "#38422B",
+  color: "white",
+};
 
 const gridContainerStyle = {
   display: "grid",
@@ -127,7 +245,6 @@ const profileCardStyle = {
   padding: "20px",
   display: "flex",
   flexDirection: "column",
-  justifyContent: "between",
   textAlign: "left",
 };
 

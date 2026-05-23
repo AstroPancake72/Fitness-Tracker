@@ -80,6 +80,10 @@ const profileSchema = new mongoose.Schema({
   weight: { type: Number, default: null },
   dietaryRestrictions: { type: [String], default: [] },
   bio: { type: String, default: "" },
+  connections: [{
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'Profile' },
+    status: { type: String, enum: ['pending', 'connected'] }
+  }]
 }, { timestamps: true });
 
 const Profile = mongoose.model("Profile", profileSchema);
@@ -358,5 +362,135 @@ app.put('/api/workouts/:id', async (req, res) => {
   } catch (error) {
     console.error("Update error:", error);
     res.status(500).json({ message: "Server error updating workout" });
+  }
+});
+
+app.get('/api/users', async (req, res) => {
+  if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+  try {
+    const currentUserId = req.session.userId;
+    const currentProfile = await Profile.findOne({ userId: currentUserId });
+    
+    console.log("currentProfile.connections:", currentProfile.connections); // ✅ add this
+    
+    const otherProfiles = await Profile.find({ userId: { $ne: currentUserId } });
+
+    const usersWithStatus = otherProfiles.map(profile => {
+      const existingConnection = currentProfile.connections.find(
+        conn => conn.userId.toString() === profile._id.toString() // ✅ check this line
+      );
+      
+      console.log(`Checking ${profile.fullName}: existingConnection =`, existingConnection); // ✅ add this
+
+      const profileObj = profile.toObject();
+      profileObj.connectionStatus = existingConnection ? existingConnection.status : null;
+      return profileObj;
+    });
+
+    res.status(200).json(usersWithStatus);
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    res.status(500).json({ message: "Server error. Could not fetch users." });
+  }
+});
+
+// 2. POST /api/connect - Handle a new connection request
+app.post('/api/connect', async (req, res) => {
+  if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+  
+  try {
+    const currentUserId = req.session.userId;
+    const { targetUserId } = req.body;
+
+    const currentProfile = await Profile.findOne({ userId: currentUserId });
+    const targetProfile = await Profile.findById(targetUserId);
+
+    if (!targetProfile) return res.status(404).json({ message: "Target profile not found." });
+
+    // ✅ Check BEFORE saving anything
+    const alreadyConnected = currentProfile.connections.some(
+      conn => conn.userId.toString() === targetUserId
+    );
+    if (alreadyConnected) return res.status(400).json({ message: "Already connected." });
+
+    currentProfile.connections.push({ userId: targetUserId, status: 'pending' });
+    targetProfile.connections.push({ userId: currentUserId, status: 'pending' });
+
+    // ✅ Use updateOne to bypass fullName validation entirely
+    await Profile.updateOne(
+      { _id: currentProfile._id },
+      { $push: { connections: { userId: targetUserId, status: 'pending' } } }
+    );
+    await Profile.updateOne(
+      { _id: targetProfile._id },
+      { $push: { connections: { userId: currentUserId, status: 'pending' } } }
+    );
+
+    res.status(200).json({ message: "Connection request sent!" });
+  } catch (error) {
+    console.error("❌ FULL ERROR:", error);
+    res.status(500).json({ message: "Error sending connection request.", detail: error.message });
+  }
+});
+
+// GET incoming pending requests
+app.get('/api/requests', async (req, res) => {
+  if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+  try {
+    const currentProfile = await Profile.findOne({ userId: req.session.userId });
+
+    // Find profiles that have sent a request TO the current user
+    const incomingProfiles = await Profile.find({
+      'connections.userId': currentProfile._id,
+      'connections.status': 'pending'
+    });
+
+    // Filter to only ones where current user hasn't initiated
+    const incoming = incomingProfiles.filter(p => {
+      const theirConn = p.connections.find(c => c.userId.toString() === currentProfile._id.toString());
+      const myConn = currentProfile.connections.find(c => c.userId.toString() === p._id.toString());
+      return theirConn?.status === 'pending' && !myConn;
+    });
+
+    res.status(200).json(incoming);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error fetching requests." });
+  }
+});
+
+// POST accept or decline a request
+app.post('/api/requests/respond', async (req, res) => {
+  if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+  try {
+    const { requesterId, action } = req.body; // action: 'accept' or 'decline'
+    const currentProfile = await Profile.findOne({ userId: req.session.userId });
+    const requesterProfile = await Profile.findById(requesterId);
+
+    if (!requesterProfile) return res.status(404).json({ message: "User not found." });
+
+    if (action === 'accept') {
+      // Add connected entry to current user
+      await Profile.updateOne(
+        { _id: currentProfile._id },
+        { $push: { connections: { userId: requesterId, status: 'connected' } } }
+      );
+      // Update requester's entry to connected
+      await Profile.updateOne(
+        { _id: requesterId, 'connections.userId': currentProfile._id },
+        { $set: { 'connections.$.status': 'connected' } }
+      );
+    } else if (action === 'decline') {
+      // Remove from requester's connections
+      await Profile.updateOne(
+        { _id: requesterId },
+        { $pull: { connections: { userId: currentProfile._id } } }
+      );
+    }
+
+    res.status(200).json({ message: `Request ${action}ed.` });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error responding to request." });
   }
 });
