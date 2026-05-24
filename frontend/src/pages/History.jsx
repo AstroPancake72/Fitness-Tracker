@@ -5,7 +5,6 @@ import '../App.css'
 export default function History() {
   const [workouts, setWorkouts] = useState([])
   const [expandedHistoryId, setExpandedHistoryId] = useState(null)
-  const [deleteModal, setDeleteModal] = useState({ isOpen: false, targetId: null })
   const [workoutSearch, setWorkoutSearch] = useState("")
   const [exerciseSearch, setExerciseSearch] = useState("")
   const [exerciseDropdown, setExerciseDropdown] = useState([])
@@ -76,7 +75,6 @@ export default function History() {
   function buildGraphData() {
     if (!selectedExercise) return []
 
-    // Group by date (session), aggregate per session
     const sessionMap = {}
     for (const workout of workouts) {
       const dateKey = new Date(workout.datetime).toLocaleDateString()
@@ -93,7 +91,6 @@ export default function History() {
       const totalSets = matching.reduce((s, ex) => s + (ex.sets || 0), 0)
       const totalTime = matching.reduce((s, ex) => s + (ex.time || 0), 0)
 
-      // If same date appears multiple times, keep the most recent
       if (!sessionMap[dateKey] || timestamp > sessionMap[dateKey].timestamp) {
         sessionMap[dateKey] = {
           date: dateKey,
@@ -120,47 +117,37 @@ export default function History() {
     score: "Score"
   }
 
-  const openDeleteModal = (id) => setDeleteModal({ isOpen: true, targetId: id })
-
-  const confirmDelete = async () => {
-    const res = await fetch(`http://localhost:5000/api/workouts/${deleteModal.targetId}`, {
-      method: 'DELETE',
-      credentials: 'include'
-    })
-    if (res.ok) {
-      setWorkouts(prev => prev.filter(w => w._id !== deleteModal.targetId))
-      if (expandedHistoryId === deleteModal.targetId) setExpandedHistoryId(null)
-    }
-    setDeleteModal({ isOpen: false, targetId: null })
-  }
-
   return (
     <div className="login-container" style={{ maxWidth: '900px' }}>
-      {deleteModal.isOpen && (
-        <div style={modalOverlayStyle}>
-          <div style={modalBoxStyle}>
-            <h3>Confirm Delete</h3>
-            <p>Are you sure you want to delete this past workout log?</p>
-            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-              <button className="counter" style={{ flex: 1, background: '#8B0000' }} onClick={confirmDelete}>Delete</button>
-              <button className="counter" style={{ flex: 1, background: '#ccc', color: '#000' }} onClick={() => setDeleteModal({ isOpen: false })}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <h1>Workout History</h1>
 
       {selectedExercise ? (
-        // --- GRAPH VIEW ---
-        <div style={{ width: '100%' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h2 style={{ margin: 0, color: '#38422B' }}>{selectedExercise}</h2>
-            <button className="counter" onClick={closeGraph}>← Back</button>
+        //  GRAPH 
+       <div style={{ width: '100%' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h2 style={{ margin: 0, color: '#38422B', fontSize: '24px' }}>{selectedExercise}</h2>
+            <button 
+              className="counter" 
+              onClick={closeGraph}
+              style={{ width: 'auto', marginBottom: '10px', marginTop: '10px', minWidth: '90px', padding: '8px 20px', margin: 0 }}
+            >
+              ← Back
+            </button>
           </div>
 
-          {/* Y-axis toggle */}
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
+          <h4 style={{ 
+            textAlign: 'left', 
+            margin: '0 0 10px 4px', 
+            color: '#38422B', 
+            fontSize: '14px', 
+            letterSpacing: '0.5px',
+            textTransform: 'uppercase',
+            opacity: 0.8
+          }}>
+            Graph Metrics
+          </h4>
+
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '25px', flexWrap: 'wrap' }}>
             {Object.entries(yAxisLabels).map(([key, label]) => (
               <button
                 key={key}
@@ -170,6 +157,9 @@ export default function History() {
                   background: yAxis === key ? '#38422B' : '#CCD5C0',
                   color: yAxis === key ? 'white' : '#38422B',
                   borderColor: yAxis === key ? '#38422B' : 'transparent',
+                  padding: '8px 16px',
+                  width: 'auto',      
+                  flexGrow: 0,        
                   marginBottom: 0
                 }}
               >
@@ -208,7 +198,6 @@ export default function History() {
             </div>
           )}
 
-          {/* Data table below graph */}
           {graphData.length > 0 && (
             <div style={{ marginTop: '20px', background: '#F5F1E8', border: '1px solid #38422B', borderRadius: '12px', overflow: 'hidden' }}>
               <div style={{ display: 'flex', fontWeight: 'bold', padding: '10px 15px', background: '#CCD5C0', fontSize: '13px', color: '#38422B' }}>
@@ -233,9 +222,7 @@ export default function History() {
           )}
         </div>
       ) : (
-        // --- WORKOUT LIST VIEW ---
         <div style={{ width: '100%' }}>
-          {/* Search bars */}
           <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
             <input
               type="text"
@@ -284,11 +271,10 @@ export default function History() {
                         {new Date(log.datetime).toLocaleDateString()} at {new Date(log.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <div>
                       <button className="counter" onClick={() => setExpandedHistoryId(isExpanded ? null : log._id)}>
                         {isExpanded ? "Hide" : "View"}
                       </button>
-                      <button className="counter" style={{ background: '#8B0000', ...deleteBtnStyle }} onClick={() => openDeleteModal(log._id)}>✕</button>
                     </div>
                   </div>
 
@@ -360,6 +346,3 @@ const dropdownItemStyle = {
 }
 
 const itemStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F5F1E8', padding: '15px', borderRadius: '15px', marginBottom: '10px', border: '1px solid #38422B' }
-const deleteBtnStyle = { width: '30px', height: '30px', minWidth: '30px', minHeight: '30px', borderRadius: '50%', background: '#8B0000', color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0', lineHeight: '1', fontSize: '16px', flexShrink: 0 }
-const modalOverlayStyle = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }
-const modalBoxStyle = { background: '#fff', padding: '30px', borderRadius: '15px', textAlign: 'center', width: '300px', border: '2px solid #38422B' }
