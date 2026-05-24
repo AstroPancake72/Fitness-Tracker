@@ -190,15 +190,12 @@ app.post("/api/login", async (req, res) => {
     user.twoFactorCode = code;
     user.twoFactorExpires = Date.now() + 10 * 60 * 1000;
     await user.save();
-/*
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
       to: user.email,
       subject: "Your Fitness Tracker Login Code",
       text: `Your 6-digit login code is: ${code}. It expires in 10 minutes.`
     });
-*/
-    console.log(`2FA code: ${code}`);
     res.status(200).json({ message: "Code sent", requires2FA: true });
   } catch (err) {
     console.error(err);
