@@ -10,7 +10,13 @@ import Messages, { disconnectSocket } from './pages/Messages';
  
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
-  const [page, setPage] = useState('login');
+  // NEW: Stops the app from choosing a layout before the server verification responds
+  const [loading, setLoading] = useState(true); 
+  
+  const [page, setPage] = useState(() => {
+    return localStorage.getItem('current_page') || 'login';
+  });
+  
   const [openMessageUserId, setOpenMessageUserId] = useState(null);
  
   useEffect(() => {
@@ -21,24 +27,61 @@ function App() {
         });
         if (response.ok) {
           setLoggedIn(true);
-          setPage('workouts');
+          
+          setPage((currentPage) => {
+            if (currentPage === 'login' || currentPage === 'signup') {
+              localStorage.setItem('current_page', 'workouts');
+              return 'workouts';
+            }
+            return currentPage;
+          });
+        } else {
+          setLoggedIn(false);
+          setPage('login');
+          localStorage.setItem('current_page', 'login');
         }
       } catch (error) {
         console.error(error);
+      } finally {
+        setLoading(false); // NEW: Verification complete, safe to render now
       }
     }
     checkLogin();
   }, []);
+
+  function navigateTo(newPage) {
+    setPage(newPage);
+    localStorage.setItem('current_page', newPage);
+  }
  
   function handleOpenMessage(userId) {
     setOpenMessageUserId(userId);
-    setPage('messages');
+    navigateTo('messages'); 
   }
  
-  function handleLogout() {
+  // FIXED: Clears authentication status on the server and blocks local persistence updates
+  async function handleLogout() {
+    try {
+      await fetch("http://localhost:5000/api/logout", {
+        method: "POST", // Change to "DELETE" if your backend uses a delete route
+        credentials: "include",
+      });
+    } catch (error) {
+      console.error("Server logout error:", error);
+    }
+
     disconnectSocket();
     setLoggedIn(false);
-    setPage('login');
+    navigateTo('login'); 
+  }
+
+  // NEW: Don't render components during the initial HTTP handshake check
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: '#38422B', fontWeight: 'bold' }}>
+        Loading Session...
+      </div>
+    );
   }
  
   return (
@@ -46,11 +89,11 @@ function App() {
       {loggedIn ? (
         <div>
           <nav style={{ display: 'flex', gap: 12, padding: 12, justifyContent: 'center', background: '#CCD5C0', borderBottom: '2px solid #38422B' }}>
-            <button onClick={() => setPage('workouts')} className="counter" style={page === 'workouts' ? activeNavBtn : {}}>Workouts</button>
-            <button onClick={() => setPage('history')} className="counter" style={page === 'history' ? activeNavBtn : {}}>History</button>
-            <button onClick={() => setPage('profile')} className="counter" style={page === 'profile' ? activeNavBtn : {}}>Profile</button>
-            <button onClick={() => setPage('connect')} className="counter" style={page === 'connect' ? activeNavBtn : {}}>Connect</button>
-            <button onClick={() => setPage('messages')} className="counter" style={page === 'messages' ? activeNavBtn : {}}>Messages</button>
+            <button onClick={() => navigateTo('workouts')} className="counter" style={page === 'workouts' ? activeNavBtn : {}}>Workouts</button>
+            <button onClick={() => navigateTo('history')} className="counter" style={page === 'history' ? activeNavBtn : {}}>History</button>
+            <button onClick={() => navigateTo('profile')} className="counter" style={page === 'profile' ? activeNavBtn : {}}>Profile</button>
+            <button onClick={() => navigateTo('connect')} className="counter" style={page === 'connect' ? activeNavBtn : {}}>Connect</button>
+            <button onClick={() => navigateTo('messages')} className="counter" style={page === 'messages' ? activeNavBtn : {}}>Messages</button>
             <button onClick={handleLogout} className="counter">Logout</button>
           </nav>
  
@@ -67,9 +110,9 @@ function App() {
         </div>
       ) : (
         page === 'login' ? (
-          <Login onLogin={() => { setLoggedIn(true); setPage('workouts'); }} onShowSignup={() => setPage('signup')} />
+          <Login onLogin={() => { setLoggedIn(true); navigateTo('workouts'); }} onShowSignup={() => navigateTo('signup')} />
         ) : (
-          <Signup onBack={() => setPage('login')} />
+          <Signup onBack={() => navigateTo('login')} />
         )
       )}
     </>
@@ -83,4 +126,3 @@ const activeNavBtn = {
 };
  
 export default App;
-

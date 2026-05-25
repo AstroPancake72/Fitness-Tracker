@@ -2,6 +2,7 @@ import { useState } from "react";
 
 export default function Login({ onLogin, onShowSignup }) {
   const [showCodePage, setShowCodePage] = useState(false);
+  const [showPassword, setShowPassword] = useState(false); // Tracks visibility state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
@@ -11,7 +12,6 @@ export default function Login({ onLogin, onShowSignup }) {
     e.preventDefault();
 
     try {
-
       const response = await fetch("http://localhost:5000/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -23,7 +23,6 @@ export default function Login({ onLogin, onShowSignup }) {
 
       if (response.ok) {
         setMessage("");
-        
         setShowCodePage(true); 
       } else {
         setMessage(data.message || "Wrong email or password");
@@ -34,30 +33,29 @@ export default function Login({ onLogin, onShowSignup }) {
     }
   }
   
-
   async function checkCode(e) {
-  e.preventDefault();
+    e.preventDefault();
 
-  try {
-    const response = await fetch("http://localhost:5000/api/verify-2fa", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, code }), // Sends the email and the typed code
-    });
+    try {
+      const response = await fetch("http://localhost:5000/api/verify-2fa", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code }), 
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (response.ok) {
-      setMessage("");
-      onLogin();
-    } else {
-      setMessage(data.message || "Wrong authentication code");
+      if (response.ok) {
+        setMessage("");
+        onLogin();
+      } else {
+        setMessage(data.message || "Wrong authentication code");
+      }
+    } catch (error) {
+      setMessage("Server error. Please try again.");
     }
-  } catch (error) {
-    setMessage("Server error. Please try again.");
   }
-}
 
   if (showCodePage) {
     return (
@@ -88,14 +86,39 @@ export default function Login({ onLogin, onShowSignup }) {
           onChange={(e) => setEmail(e.target.value)}
         />
 
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', position: 'relative', width: '100%' }}>
+          <input
+            type={showPassword ? "text" : "password"} 
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            style={{ paddingRight: '60px', width: '100%' }} // Bumped padding slightly so longer text labels won't overlap your typing
+          />
+          <button
+            type="button" 
+            onClick={() => setShowPassword(!showPassword)}
+            style={{
+              position: 'absolute',
+              right: '20px',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              color: '#38422B', 
+              padding: '4px',
+              margin: 0,
+              width: 'auto',
+              boxShadow: 'none',
+              marginTop: '10px',
 
-        <button type="submit">Log In</button>
+            }}
+          >
+            {showPassword ? "Hide" : "Show"} 
+          </button>
+        </div>
+
+        <button type="submit" style={{ marginTop: '15px' }}>Log In</button>
       </form>
 
       {message && <p className="error">{message}</p>}

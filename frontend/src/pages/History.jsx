@@ -223,10 +223,10 @@ export default function History() {
         </div>
       ) : (
         <div style={{ width: '100%' }}>
-          <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', flexWrap: 'wrap' }}>
             <input
               type="text"
-              placeholder="Search by workout name..."
+              placeholder="Search by workout name:"
               value={workoutSearch}
               onChange={(e) => setWorkoutSearch(e.target.value)}
               style={searchInputStyle}
@@ -234,7 +234,7 @@ export default function History() {
             <div style={{ position: 'relative', flex: 1 }} ref={dropdownRef}>
               <input
                 type="text"
-                placeholder="Search by exercise name..."
+                placeholder="Search by exercise name (Graph Progress):"
                 value={exerciseSearch}
                 onChange={handleExerciseSearchChange}
                 style={searchInputStyle}

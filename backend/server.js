@@ -231,6 +231,29 @@ app.get("/api/me", async (req, res) => {
   res.json({ user });
 });
 
+app.post("/api/logout", (req, res) => {
+  if (req.session) {
+    // Destroy the session data stored on the server side
+    req.session.destroy((err) => {
+      if (err) {
+        console.error("Error destroying session:", err);
+        return res.status(500).json({ message: "Could not log out, please try again." });
+      }
+      
+      // Explicitly clear the cookie on the browser side to leave no trace
+      res.clearCookie("connect.sid", {
+        path: "/",
+        httpOnly: true,
+        secure: false, // Matches your session cookie configuration
+        sameSite: "lax"
+      });
+
+      return res.status(200).json({ message: "Logged out successfully" });
+    });
+  } else {
+    return res.status(200).json({ message: "Already logged out" });
+  }
+});
 // ─── Workout Routes ───────────────────────────────────────────────────────────
 
 app.post("/api/workouts", async (req, res) => {
@@ -331,7 +354,6 @@ app.put("/api/profile", async (req, res) => {
   }
 });
 
-// ─── Connect Routes ───────────────────────────────────────────────────────────
 
 app.get("/api/users", async (req, res) => {
   if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
@@ -369,7 +391,6 @@ app.post("/api/connect", async (req, res) => {
     );
     if (alreadyConnected) return res.status(400).json({ message: "Already connected." });
 
-    // Only push onto the sender's side — recipient gets their entry on accept
     await Profile.updateOne(
       { _id: currentProfile._id },
       { $push: { connections: { userId: targetUserId, status: "pending" } } }
@@ -411,12 +432,10 @@ app.post("/api/requests/respond", async (req, res) => {
     if (!requesterProfile) return res.status(404).json({ message: "User not found." });
 
     if (action === "accept") {
-      // Upgrade the requester's pending entry to connected
       await Profile.updateOne(
         { _id: requesterId, "connections.userId": currentProfile._id },
         { $set: { "connections.$.status": "connected" } }
       );
-      // Add connected entry on the current user's side (didn't exist before)
       await Profile.updateOne(
         { _id: currentProfile._id },
         { $push: { connections: { userId: requesterId, status: "connected" } } }
@@ -436,7 +455,6 @@ app.post("/api/requests/respond", async (req, res) => {
   }
 });
 
-// ─── Messaging Routes (NEW) ───────────────────────────────────────────────────
 
 // Get all conversations for the current user (one entry per unique partner, sorted by latest message)
 app.get("/api/messages/conversations", async (req, res) => {
@@ -444,12 +462,10 @@ app.get("/api/messages/conversations", async (req, res) => {
   try {
     const userId = req.session.userId;
 
-    // Find all messages involving this user, get latest per conversation partner
     const messages = await Message.find({
       $or: [{ senderId: userId }, { receiverId: userId }],
     }).sort({ createdAt: -1 });
 
-    // Build a map of partnerId -> latest message
     const conversationMap = new Map();
     for (const msg of messages) {
       const partnerId =
@@ -462,7 +478,6 @@ app.get("/api/messages/conversations", async (req, res) => {
       }
     }
 
-    // Count unread per partner
     const unreadCounts = await Message.aggregate([
       { $match: { receiverId: new mongoose.Types.ObjectId(userId), read: false } },
       { $group: { _id: "$senderId", count: { $sum: 1 } } },
@@ -470,7 +485,6 @@ app.get("/api/messages/conversations", async (req, res) => {
     const unreadMap = {};
     unreadCounts.forEach((u) => { unreadMap[u._id.toString()] = u.count; });
 
-    // Fetch partner profiles
     const partnerIds = [...conversationMap.keys()];
     const partnerProfiles = await Profile.find({
       userId: { $in: partnerIds.map((id) => new mongoose.Types.ObjectId(id)) },
@@ -489,7 +503,6 @@ app.get("/api/messages/conversations", async (req, res) => {
       };
     });
 
-    // Already sorted by latest message (map insertion order preserved from sorted query)
     res.json(conversations);
   } catch (err) {
     console.error("Conversations error:", err);
@@ -497,7 +510,6 @@ app.get("/api/messages/conversations", async (req, res) => {
   }
 });
 
-// Get message history between current user and a partner
 app.get("/api/messages/:partnerId", async (req, res) => {
   if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
   try {
@@ -511,7 +523,6 @@ app.get("/api/messages/:partnerId", async (req, res) => {
       ],
     }).sort({ createdAt: 1 });
 
-    // Mark messages from partner as read
     await Message.updateMany(
       { senderId: partnerId, receiverId: userId, read: false },
       { $set: { read: true } }
@@ -524,7 +535,6 @@ app.get("/api/messages/:partnerId", async (req, res) => {
   }
 });
 
-// Get connections list for the messages sidebar (only 'connected' status)
 app.get("/api/my-connections", async (req, res) => {
   if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
   try {
@@ -535,7 +545,6 @@ app.get("/api/my-connections", async (req, res) => {
       .filter((c) => c.status === "connected")
       .map((c) => c.userId);
 
-    // connectedIds are Profile._ids, need to get their userId
     const connectedProfiles = await Profile.find({ _id: { $in: connectedIds } });
 
     res.json(connectedProfiles);
@@ -545,9 +554,7 @@ app.get("/api/my-connections", async (req, res) => {
   }
 });
 
-// ─── Socket.io ────────────────────────────────────────────────────────────────
 
-// Map userId -> socketId for routing messages
 const onlineUsers = new Map();
 
 io.on("connection", (socket) => {
@@ -560,7 +567,6 @@ io.on("connection", (socket) => {
   onlineUsers.set(userId, socket.id);
   console.log(`User connected: ${userId}`);
 
-  // Send a text message
   socket.on("send_message", async ({ receiverId, content }) => {
     try {
       const msg = await Message.create({
@@ -570,13 +576,11 @@ io.on("connection", (socket) => {
         content,
       });
 
-      // Send to receiver if online
       const receiverSocketId = onlineUsers.get(receiverId);
       if (receiverSocketId) {
         io.to(receiverSocketId).emit("receive_message", msg);
       }
 
-      // Echo back to sender so their UI updates
       socket.emit("message_sent", msg);
     } catch (err) {
       console.error("send_message error:", err);
@@ -613,7 +617,6 @@ io.on("connection", (socket) => {
   });
 });
 
-// ─── Start Server ─────────────────────────────────────────────────────────────
 
 server.listen(5000, () => {
   console.log("Server running on port 5000");
