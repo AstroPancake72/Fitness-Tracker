@@ -92,7 +92,7 @@ export default function Login({ onLogin, onShowSignup, onForgotPassword}) {
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            style={{ paddingRight: '60px', width: '100%' }} // Bumped padding slightly so longer text labels won't overlap your typing
+            style={{ paddingRight: '60px', width: '100%' }} 
           />
           <button
             type="button" 

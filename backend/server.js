@@ -263,7 +263,7 @@ app.post("/api/reset-password", async (req, res) => {
       return res.status(400).json({ message: "Invalid or expired reset code." });
     }
 
-    user.password = await bcrypt.hash(newPassword, 10);
+    user.password = await bcrypt.hash(newPassword, 10); //in-place update
     user.resetPasswordCode = undefined;
     user.resetPasswordExpires = undefined;
     await user.save();
@@ -291,7 +291,7 @@ app.post("/api/logout", (req, res) => {
       res.clearCookie("connect.sid", {
         path: "/",
         httpOnly: true,
-        secure: false, // Matches your session cookie configuration
+        secure: false, 
         sameSite: "lax"
       });
 
@@ -454,7 +454,6 @@ app.get("/api/requests", async (req, res) => {
   try {
     const currentProfile = await Profile.findOne({ userId: req.session.userId });
 
-    // Find all OTHER profiles that have a pending entry pointing at the current user
     const incomingProfiles = await Profile.find({
       _id: { $ne: currentProfile._id },
       "connections.userId": currentProfile._id,
@@ -487,7 +486,6 @@ app.post("/api/requests/respond", async (req, res) => {
         { $push: { connections: { userId: requesterId, status: "connected" } } }
       );
     } else if (action === "decline") {
-      // Just remove the requester's pending entry
       await Profile.updateOne(
         { _id: requesterId },
         { $pull: { connections: { userId: currentProfile._id } } }

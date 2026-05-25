@@ -52,21 +52,25 @@ export default function ForgotPassword({ onBack }) {
 
   return (
     <div className="login-container">
-      <h1>Fitness Tracker</h1>
-      <h2 className="login-subtitle">Reset Password</h2>
-
-      {!codeSent ? (
-        <form onSubmit={handleRequestCode}>
-          <p style={{ marginBottom: '15px', fontSize: '14px' }}>Enter your email to receive a verification pin.</p>
-          <input 
-            type="email" 
-            placeholder="Email Address" 
-            value={email} 
-            onChange={(e) => setEmail(e.target.value)} 
-            required 
-          />
-          <button type="submit">Send Reset Code</button>
-        </form>
+    <h1 style={{ marginBottom: '10px' }}>Fitness Tracker</h1>
+    <h2 className="login-subtitle" style={{ marginBottom: '10px' }}>Reset Password</h2>
+    {!codeSent ? (
+      <form onSubmit={handleRequestCode}>
+        <p style={{ fontSize: '14px' }}>
+          Enter email to receive a verification pin.
+        </p>
+        <input 
+          type="email" 
+          placeholder="Email Address" 
+          value={email} 
+          onChange={(e) => setEmail(e.target.value)} 
+          required 
+        />
+        
+        <button type="submit" style={{ marginTop: '1px' }}>
+          Send Reset Code
+        </button>
+      </form>
       ) : (
         <form onSubmit={handleResetPassword}>
           <input 
@@ -77,7 +81,6 @@ export default function ForgotPassword({ onBack }) {
             required 
           />
           
-          {/* 👈 Replicated inline wrapper from Login.jsx */}
           <div style={{ display: 'flex', alignItems: 'center', position: 'relative', width: '100%' }}>
             <input 
               type={showPassword ? "text" : "password"} 
