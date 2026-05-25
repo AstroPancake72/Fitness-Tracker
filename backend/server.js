@@ -59,6 +59,8 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   twoFactorCode: { type: String },
   twoFactorExpires: { type: Date },
+  resetPasswordCode: { type: String },
+  resetPasswordExpires: { type: Date },
 });
 const User = mongoose.model("User", userSchema);
 
@@ -224,7 +226,54 @@ app.post("/api/verify-2fa", async (req, res) => {
     res.status(500).json({ message: "Verification failed" });
   }
 });
+app.post("/api/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+    const user = await User.findOne({ email });
+    
+    if (!user) {
+      return res.status(200).json({ message: "If that email exists, a reset code was sent!" });
+    }
 
+    const code = Math.floor(Math.random() * 1000000).toString().padStart(6, "0");
+    user.resetPasswordCode = code;
+    user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // 15 mins
+    await user.save();
+
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: user.email,
+      subject: "Fitness Tracker - Reset Your Password",
+      text: `Your password reset code is: ${code}. It expires in 15 minutes.`
+    });
+
+    res.status(200).json({ message: "If that email exists, a reset code was sent!" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error sending reset code" });
+  }
+});
+
+app.post("/api/reset-password", async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+    const user = await User.findOne({ email });
+
+    if (!user || !user.resetPasswordCode || user.resetPasswordCode !== code || user.resetPasswordExpires < Date.now()) {
+      return res.status(400).json({ message: "Invalid or expired reset code." });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    user.resetPasswordCode = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    res.status(200).json({ message: "Password updated successfully!" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to reset password." });
+  }
+});
 app.get("/api/me", async (req, res) => {
   if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
   const user = await User.findById(req.session.userId).select("-password");
@@ -233,14 +282,12 @@ app.get("/api/me", async (req, res) => {
 
 app.post("/api/logout", (req, res) => {
   if (req.session) {
-    // Destroy the session data stored on the server side
     req.session.destroy((err) => {
       if (err) {
         console.error("Error destroying session:", err);
         return res.status(500).json({ message: "Could not log out, please try again." });
       }
       
-      // Explicitly clear the cookie on the browser side to leave no trace
       res.clearCookie("connect.sid", {
         path: "/",
         httpOnly: true,
@@ -254,7 +301,7 @@ app.post("/api/logout", (req, res) => {
     return res.status(200).json({ message: "Already logged out" });
   }
 });
-// ─── Workout Routes ───────────────────────────────────────────────────────────
+//Workout Routes 
 
 app.post("/api/workouts", async (req, res) => {
   if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
@@ -324,8 +371,7 @@ app.delete("/api/workouts/:id", async (req, res) => {
   }
 });
 
-// ─── Profile Routes ───────────────────────────────────────────────────────────
-
+//profile routes
 app.get("/api/profile", async (req, res) => {
   if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
   try {
@@ -456,7 +502,6 @@ app.post("/api/requests/respond", async (req, res) => {
 });
 
 
-// Get all conversations for the current user (one entry per unique partner, sorted by latest message)
 app.get("/api/messages/conversations", async (req, res) => {
   if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
   try {

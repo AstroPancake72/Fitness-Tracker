@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export default function Login({ onLogin, onShowSignup }) {
+export default function Login({ onLogin, onShowSignup, onForgotPassword}) {
   const [showCodePage, setShowCodePage] = useState(false);
   const [showPassword, setShowPassword] = useState(false); // Tracks visibility state
   const [email, setEmail] = useState("");
@@ -119,6 +119,9 @@ export default function Login({ onLogin, onShowSignup }) {
         </div>
 
         <button type="submit" style={{ marginTop: '15px' }}>Log In</button>
+        <button type="button" onClick={onForgotPassword} className="link-button" style={{ marginTop: '12px', fontSize: '14px', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+          Forgot Password?
+        </button>
       </form>
 
       {message && <p className="error">{message}</p>}

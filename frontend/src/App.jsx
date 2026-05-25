@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import ForgotPassword from "./pages/ForgotPassword"; 
 import Workouts from "./pages/Workouts";
 import "./App.css";
 import Profile from "./pages/Profile";
@@ -10,9 +11,8 @@ import Messages, { disconnectSocket } from './pages/Messages';
  
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
-  // NEW: Stops the app from choosing a layout before the server verification responds
   const [loading, setLoading] = useState(true); 
-  
+
   const [page, setPage] = useState(() => {
     return localStorage.getItem('current_page') || 'login';
   });
@@ -29,7 +29,7 @@ function App() {
           setLoggedIn(true);
           
           setPage((currentPage) => {
-            if (currentPage === 'login' || currentPage === 'signup') {
+            if (currentPage === 'login' || currentPage === 'signup' || currentPage === 'forgot') {
               localStorage.setItem('current_page', 'workouts');
               return 'workouts';
             }
@@ -37,13 +37,18 @@ function App() {
           });
         } else {
           setLoggedIn(false);
-          setPage('login');
-          localStorage.setItem('current_page', 'login');
+          setPage((currentPage) => {
+            if (currentPage !== 'signup' && currentPage !== 'forgot') {
+              localStorage.setItem('current_page', 'login');
+              return 'login';
+            }
+            return currentPage;
+          });
         }
       } catch (error) {
         console.error(error);
       } finally {
-        setLoading(false); // NEW: Verification complete, safe to render now
+        setLoading(false); 
       }
     }
     checkLogin();
@@ -59,11 +64,10 @@ function App() {
     navigateTo('messages'); 
   }
  
-  // FIXED: Clears authentication status on the server and blocks local persistence updates
   async function handleLogout() {
     try {
       await fetch("http://localhost:5000/api/logout", {
-        method: "POST", // Change to "DELETE" if your backend uses a delete route
+        method: "POST", 
         credentials: "include",
       });
     } catch (error) {
@@ -75,7 +79,6 @@ function App() {
     navigateTo('login'); 
   }
 
-  // NEW: Don't render components during the initial HTTP handshake check
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: '#38422B', fontWeight: 'bold' }}>
@@ -110,7 +113,13 @@ function App() {
         </div>
       ) : (
         page === 'login' ? (
-          <Login onLogin={() => { setLoggedIn(true); navigateTo('workouts'); }} onShowSignup={() => navigateTo('signup')} />
+          <Login 
+            onLogin={() => { setLoggedIn(true); navigateTo('workouts'); }} 
+            onShowSignup={() => navigateTo('signup')} 
+            onForgotPassword={() => navigateTo('forgot')} 
+          />
+        ) : page === 'forgot' ? (
+          <ForgotPassword onBack={() => navigateTo('login')} /> 
         ) : (
           <Signup onBack={() => navigateTo('login')} />
         )
