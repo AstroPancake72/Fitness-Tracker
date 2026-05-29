@@ -455,11 +455,14 @@ app.get("/api/requests", async (req, res) => {
     const currentProfile = await Profile.findOne({ userId: req.session.userId });
 
     const incomingProfiles = await Profile.find({
-      _id: { $ne: currentProfile._id },
-      "connections.userId": currentProfile._id,
-      "connections.status": "pending",
-    });
-
+ 	 _id: { $ne: currentProfile._id },
+ 	 connections: {
+  	  $elemMatch: {        
+     	     userId: currentProfile._id,  
+ 	     status: "pending",
+	    },
+	  },
+	});
     res.status(200).json(incomingProfiles);
   } catch (error) {
     console.error(error);
@@ -475,7 +478,8 @@ app.post("/api/requests/respond", async (req, res) => {
     const requesterProfile = await Profile.findById(requesterId);
 
     if (!requesterProfile) return res.status(404).json({ message: "User not found." });
-
+	const requesterObjId = new mongoose.Types.ObjectId(requesterId); 
+	const currentObjId = new mongoose.Types.ObjectId(currentProfile._id); 
     if (action === "accept") {
       await Profile.updateOne(
         { _id: requesterId, "connections.userId": currentProfile._id },
