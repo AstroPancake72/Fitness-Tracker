@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { io } from "socket.io-client";
 import "../App.css";
 
+// Single socket instance shared for the lifetime of the page
 let socket = null;
 
 function getSocket() {
@@ -29,9 +30,13 @@ export default function Messages({ openWithUserId, onClearOpenWith }) {
   const [myUserId, setMyUserId] = useState(null);
   const [showWorkoutPicker, setShowWorkoutPicker] = useState(false);
   const [myWorkouts, setMyWorkouts] = useState([]);
-  const [viewingWorkout, setViewingWorkout] = useState(null); 
+  const [viewingWorkout, setViewingWorkout] = useState(null);
   const [addedWorkouts, setAddedWorkouts] = useState(new Set());
+  const [closedConversations, setClosedConversations] = useState(new Set());
+  const [messageError, setMessageError] = useState("");
   const messagesEndRef = useRef(null);
+
+  // ── Bootstrap ────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     fetchMe();
@@ -41,8 +46,13 @@ export default function Messages({ openWithUserId, onClearOpenWith }) {
     const s = getSocket();
 
     s.on("receive_message", (msg) => {
-      // Ignore messages we sent ourselves — message_sent handles those
       if (msg.senderId?.toString() === myUserIdRef.current) return;
+      // If this conversation was closed, reopen it since a new message arrived
+      setClosedConversations((prev) => {
+        const next = new Set(prev);
+        next.delete(msg.senderId?.toString());
+        return next;
+      });
       setConversations((prev) => upsertConversation(prev, msg, myUserIdRef.current));
       setMessages((prev) => {
         if (msg.senderId === activePartnerIdRef.current || msg.senderId?.toString() === activePartnerIdRef.current) {
@@ -57,6 +67,10 @@ export default function Messages({ openWithUserId, onClearOpenWith }) {
       setConversations((prev) => upsertConversation(prev, msg, myUserIdRef.current));
     });
 
+    s.on("message_error", ({ message }) => {
+      setMessageError(message);
+    });
+
     return () => {
       s.off("receive_message");
       s.off("message_sent");
@@ -65,6 +79,7 @@ export default function Messages({ openWithUserId, onClearOpenWith }) {
     };
   }, []);
 
+  // Ref so socket callbacks can read current value without stale closure
   const activePartnerIdRef = useRef(activePartnerId);
   useEffect(() => {
     activePartnerIdRef.current = activePartnerId;
@@ -75,6 +90,7 @@ export default function Messages({ openWithUserId, onClearOpenWith }) {
     myUserIdRef.current = myUserId;
   }, [myUserId]);
 
+  // If parent navigated us to a specific user (via Connect page message button)
   useEffect(() => {
     if (openWithUserId && connections.length > 0) {
       const partner = connections.find((c) => c.userId.toString() === openWithUserId);
@@ -86,6 +102,8 @@ export default function Messages({ openWithUserId, onClearOpenWith }) {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // ── Fetchers ─────────────────────────────────────────────────────────────────
 
   async function fetchMe() {
     const res = await fetch("http://localhost:5000/api/me", { credentials: "include" });
@@ -111,6 +129,7 @@ export default function Messages({ openWithUserId, onClearOpenWith }) {
     });
     if (res.ok) {
       setMessages(await res.json());
+      // Mark as read locally
       setConversations((prev) =>
         prev.map((c) => (c.partnerId === partnerId ? { ...c, unreadCount: 0 } : c))
       );
@@ -121,6 +140,7 @@ export default function Messages({ openWithUserId, onClearOpenWith }) {
     const res = await fetch("http://localhost:5000/api/workouts", { credentials: "include" });
     if (res.ok) {
       const data = await res.json();
+      // Deduplicate to routines (same logic as Workouts.jsx)
       const routines = data.reduce((acc, cur) => {
         if (!cur.name) return acc;
         const idx = acc.findIndex(
@@ -134,10 +154,23 @@ export default function Messages({ openWithUserId, onClearOpenWith }) {
     }
   }
 
+  // ── Actions ──────────────────────────────────────────────────────────────────
+
   function openChat(partnerId, partnerName) {
     setActivePartnerId(partnerId);
     setActivePartnerName(partnerName);
+    setMessageError("");
     fetchMessages(partnerId);
+  }
+
+  function closeConversation(e, partnerId) {
+    e.stopPropagation(); // don't trigger openChat on the sidebar item
+    setClosedConversations((prev) => new Set([...prev, partnerId]));
+    if (activePartnerId === partnerId) {
+      setActivePartnerId(null);
+      setMessages([]);
+      setMessageError("");
+    }
   }
 
   function sendText(e) {
@@ -172,6 +205,8 @@ export default function Messages({ openWithUserId, onClearOpenWith }) {
     }
   }
 
+  // ── Helpers ───────────────────────────────────────────────────────────────────
+
   function upsertConversation(prev, msg, currentUserId) {
     const partnerId =
       msg.senderId === currentUserId ? msg.receiverId : msg.senderId;
@@ -185,6 +220,9 @@ export default function Messages({ openWithUserId, onClearOpenWith }) {
     return [{ partnerId, partnerName: "User", latestMessage: msg, unreadCount: 1 }, ...prev];
   }
 
+  // ── Filtered lists ────────────────────────────────────────────────────────────
+
+  // Merge conversations + connections so all connections appear in sidebar
   const sidebarItems = (() => {
     const items = [...conversations];
     connections.forEach((conn) => {
@@ -193,10 +231,15 @@ export default function Messages({ openWithUserId, onClearOpenWith }) {
         items.push({ partnerId: uid, partnerName: conn.fullName || "User", latestMessage: null, unreadCount: 0 });
       }
     });
-    return items.filter((item) =>
-      item.partnerName.toLowerCase().includes(search.toLowerCase())
-    );
+    return items.filter((item) => {
+      const matchesSearch = item.partnerName.toLowerCase().includes(search.toLowerCase());
+      // Hide closed conversations unless user is actively searching
+      const isHidden = closedConversations.has(item.partnerId) && !search.trim();
+      return matchesSearch && !isHidden;
+    });
   })();
+
+  // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
     <div style={outerStyle}>
@@ -315,7 +358,7 @@ export default function Messages({ openWithUserId, onClearOpenWith }) {
                 {item.latestMessage && (
                   <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {item.latestMessage.type === "workout"
-                      ? `${item.latestMessage.workout?.name}`
+                      ? `🏋️ ${item.latestMessage.workout?.name}`
                       : item.latestMessage.content}
                   </div>
                 )}
@@ -336,6 +379,13 @@ export default function Messages({ openWithUserId, onClearOpenWith }) {
             {/* Header */}
             <div style={chatHeaderStyle}>
               <span style={{ fontWeight: 700, fontSize: 18 }}>{activePartnerName}</span>
+              <button
+                className="counter"
+                style={{ marginBottom: 0, padding: "4px 12px", fontSize: 13 }}
+                onClick={(e) => closeConversation(e, activePartnerId)}
+              >
+                Close chat
+              </button>
             </div>
 
             {/* Messages */}
@@ -353,7 +403,7 @@ export default function Messages({ openWithUserId, onClearOpenWith }) {
                         onClick={() => setViewingWorkout(msg.workout)}
                       >
                         <div style={{ fontSize: 11, opacity: 0.7, marginBottom: 4 }}>
-                            Shared a workout
+                          🏋️ Shared a workout
                         </div>
                         <div style={{ fontWeight: 700 }}>{msg.workout?.name}</div>
                         <div style={{ fontSize: 12, marginTop: 4, opacity: 0.8 }}>
@@ -372,6 +422,13 @@ export default function Messages({ openWithUserId, onClearOpenWith }) {
               <div ref={messagesEndRef} />
             </div>
 
+            {/* Error banner */}
+            {messageError && (
+              <div style={errorBannerStyle}>
+                ⚠ {messageError}
+              </div>
+            )}
+
             {/* Input */}
             <form onSubmit={sendText} style={inputRowStyle}>
               <button
@@ -387,7 +444,7 @@ export default function Messages({ openWithUserId, onClearOpenWith }) {
                 style={textInputStyle}
                 placeholder="Type a message..."
                 value={text}
-                onChange={(e) => setText(e.target.value)}
+                onChange={(e) => { setText(e.target.value); setMessageError(""); }}
               />
               <button
                 type="submit"
@@ -404,9 +461,11 @@ export default function Messages({ openWithUserId, onClearOpenWith }) {
   );
 }
 
+// ── Styles ────────────────────────────────────────────────────────────────────
+
 const outerStyle = {
   display: "flex",
-  height: "calc(100vh - 64px)", 
+  height: "calc(100vh - 64px)", // subtract nav height
   background: "#F5F1E8",
   overflow: "hidden",
 };
@@ -479,6 +538,20 @@ const chatHeaderStyle = {
   padding: "16px 20px",
   borderBottom: "2px solid #38422B",
   background: "#CCD5C0",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+};
+
+const errorBannerStyle = {
+  margin: "0 16px 8px",
+  padding: "10px 14px",
+  background: "#f8d7da",
+  border: "1px solid #8b2e2e",
+  borderRadius: 10,
+  color: "#8b2e2e",
+  fontSize: 14,
+  fontWeight: 600,
 };
 
 const messagesListStyle = {
