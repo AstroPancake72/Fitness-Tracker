@@ -15,7 +15,6 @@ function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true); 
   
-  // Tracks multiple suggested exercise templates locally
   const [pendingSuggestions, setPendingSuggestions] = useState([]);
   
   const [page, setPage] = useState(() => {
@@ -64,11 +63,39 @@ function App() {
     localStorage.setItem('current_page', newPage);
   }
 
-  function handleSelectSuggestedExercise(exercise) {
-    // Append the selected suggestion into state without changing tabs
-    setPendingSuggestions(prev => [...prev, exercise]);
-    alert(`"${exercise.name}" added to your routines dashboard!`);
+async function handleSelectSuggestedExercise(exercise) {
+  try {
+    const workoutPayload = {
+      name: `Suggested: ${exercise.name}`,
+      datetime: new Date(),
+      isTemplate: true, 
+      exercises: [
+        {
+          name: exercise.name,
+          weight: exercise.weight || 0,
+          reps: exercise.reps || 0,
+          sets: exercise.sets || 0,
+          time: exercise.time || null,
+          isOriginal: true 
+        }
+      ]
+    };
+
+    const response = await fetch("http://localhost:5000/api/workouts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(workoutPayload),
+      credentials: "include",
+    });
+
+    if (!response.ok) throw new Error("Failed to save suggestion template");
+
+    alert(`"${exercise.name}" added to your routines dashboards!`);
+  } catch (error) {
+    console.error(error);
   }
+}
+
 
   function handleOpenMessage(userId) {
     setOpenMessageUserId(userId);

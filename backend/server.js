@@ -69,6 +69,7 @@ const workoutSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   name: { type: String, required: true },
   datetime: { type: Date, default: Date.now },
+  isTemplate: { type: Boolean, default: false }, 
   exercises: [
     {
       name: { type: String, required: true },
@@ -308,7 +309,7 @@ app.post("/api/logout", (req, res) => {
 app.post("/api/workouts", async (req, res) => {
   if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
   try {
-    const { name, datetime, exercises } = req.body;
+    const { name, datetime, exercises, isTemplate } = req.body; 
     if (!name || !exercises || !Array.isArray(exercises)) {
       return res.status(400).json({ message: "Invalid workout data" });
     }
@@ -316,6 +317,7 @@ app.post("/api/workouts", async (req, res) => {
       userId: req.session.userId,
       name,
       datetime: datetime || new Date(),
+      isTemplate: isTemplate || false, 
       exercises,
     });
     await newWorkout.save();
@@ -341,14 +343,14 @@ app.get("/api/workouts", async (req, res) => {
 
 app.put("/api/workouts/:id", async (req, res) => {
   const { id } = req.params;
-  const { name, originalName, datetime, exercises } = req.body;
+  const { name, originalName, datetime, exercises, isTemplate } = req.body; 
   try {
     if (originalName && originalName !== name) {
       await Workout.updateMany({ name: originalName }, { name });
     }
     const updatedWorkout = await Workout.findByIdAndUpdate(
       id,
-      { name, datetime, exercises },
+      { name, datetime, exercises, isTemplate }, 
       { new: true, runValidators: true }
     );
     if (!updatedWorkout) return res.status(404).json({ message: "Workout routine not found" });
@@ -662,7 +664,6 @@ io.on("connection", (socket) => {
   });
 });
 
-// PUT /api/goals/set
 app.put('/api/goals/set', async (req, res) => {
   if (!req.session.userId) return res.status(401).json({ message: 'Not logged in' });
   const { goal } = req.body;
@@ -725,57 +726,67 @@ app.get('/api/goals/progress', async (req, res) => {
 });
 
 
-//exercise suggestions
+let cachedSuggestions = null;
+let cacheExpirationTime = 0;
+
+// exercise suggestions
 app.get("/api/exercise-suggestions", async (req, res) => {
   if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
 
   try {
     const profile = await Profile.findOne({ userId: req.session.userId });
-    
     const userGoal = profile?.currentGoal || "Getting Stronger";
 
-    if (!process.env.NINJA_API_KEY) {
-      console.warn(" No NINJA_API_KEY found. Using local fallback data.");
+    const currentTime = Date.now();
+    if (cachedSuggestions && currentTime < cacheExpirationTime) {
+      console.log("Serving suggestions directly from backend cache (Saving API Quota!)");
       return res.json({
         goal: userGoal,
-        suggestions: [
-          { name: "Push-ups (Local Fallback)", type: "strength", instructions: "Standard bodyweight pushups.", sets: 3, reps: 10, weight: 0, time: null },
-          { name: "Jumping Jacks (Local Fallback)", type: "cardio", instructions: "Standard jumping jacks.", sets: 1, reps: 1, weight: 0, time: 10 }
-        ]
+        suggestions: cachedSuggestions
       });
     }
 
-    let typeFilter = "strength";
-    
+    let targetPath = 'exercises?limit=10';
     if (userGoal === "Losing Weight") {
-      typeFilter = "cardio";
+      targetPath = 'exercises/bodyPart/cardio?limit=10';
     } else if (userGoal === "Increasing Muscle Mass") {
-      typeFilter = "strength"; 
+      targetPath = 'exercises/target/pectorals?limit=10';
     } else if (userGoal === "Getting Stronger") {
-      typeFilter = "olympic_weightlifting"; 
+      targetPath = 'exercises/equipment/barbell?limit=10';
     }
 
-    const apiResponse = await axios.get("https://api.api-ninjas.com/v1/exercises", {
-      params: { type: typeFilter },
+    console.log("Cache expired or empty. Making a LIVE request to ExerciseDB...");
+    const response = await axios.get(`https://exercisedb.p.rapidapi.com/${targetPath}`, {
       headers: {
-        'X-Api-Key': process.env.NINJA_API_KEY 
+        'x-rapidapi-key': process.env.RAPIDAPI_KEY, 
+        'x-rapidapi-host': 'exercisedb.p.rapidapi.com'
       }
     });
 
-    const suggestions = apiResponse.data.slice(0, 5).map(exercise => {
+    const rawData = response.data;
+
+    const suggestions = rawData.slice(0, 5).map(exercise => {
       let baselineWeight = 0;
       if (userGoal === "Increasing Muscle Mass") baselineWeight = 25;
-      if (userGoal === "Getting Stronger") baselineWeight = 45; 
+      if (userGoal === "Getting Stronger") baselineWeight = 45;
+
+      const isCardio = exercise.bodyPart === "cardio";
+
       return {
         name: exercise.name,
-        type: exercise.type,
-        instructions: exercise.instructions,
-        sets: exercise.type === "cardio" ? 1 : 4,
-        reps: exercise.type === "cardio" ? 1 : 8, 
-        weight: baselineWeight,
-        time: exercise.type === "cardio" ? 25 : null
+        type: exercise.bodyPart,
+        instructions: Array.isArray(exercise.instructions) 
+          ? exercise.instructions.join(' ') 
+          : `Targets the ${exercise.target}. Equipment needed: ${exercise.equipment}.`,
+        sets: isCardio ? 1 : 4,
+        reps: isCardio ? 1 : 8, 
+        weight: exercise.equipment === "body weight" ? 0 : baselineWeight,
+        time: isCardio ? 25 : null
       };
     });
+
+    cachedSuggestions = suggestions;
+    cacheExpirationTime = currentTime + (5 * 60 * 1000);
 
     res.json({
       goal: userGoal,
@@ -783,7 +794,7 @@ app.get("/api/exercise-suggestions", async (req, res) => {
     });
 
   } catch (error) {
-    console.error("API-Ninjas request failed:", error.response?.data || error.message);
+    console.error("ExerciseDB request failed:", error.response?.data || error.message);
     res.status(500).json({ message: "Could not fetch suggestions from the internet." });
   }
 });

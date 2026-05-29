@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import '../App.css'
 
-export default function Workouts({ pendingSuggestions, clearPendingSuggestions }) {
+export default function Workouts() {
   const [workouts, setWorkouts] = useState([])
   const [activeWorkout, setActiveWorkout] = useState(null)
   const [newRoutineName, setNewRoutineName] = useState("")
@@ -10,49 +10,46 @@ export default function Workouts({ pendingSuggestions, clearPendingSuggestions }
   const [showNameWarning, setShowNameWarning] = useState(false); 
   const [showExerciseWarning, setShowExerciseWarning] = useState(false);
 
-  useEffect(() => {
+  const fetchWorkouts = () => {
     fetch("http://localhost:5000/api/workouts", { credentials: 'include' })
       .then(res => res.json())
       .then(data => { if (Array.isArray(data)) setWorkouts(data); })
       .catch(err => console.error("Load error:", err));
+  };
+
+  useEffect(() => {
+    fetchWorkouts();
   }, [])
 
-  // Process and group saved workouts from the backend database
-  const backendRoutines = workouts.reduce((acc, current) => {
+  const displayRoutines = workouts.filter(w => {
+    if (w.name && w.name.startsWith("Suggested:")) return true;
+    
+    if (w.isTemplate) return true;
+
+    const hasNoLoggedStats = w.exercises && w.exercises.every(ex => (ex.weight || 0) === 0);
+    return hasNoLoggedStats;
+  });
+
+  const uniqueRoutines = displayRoutines.reduce((acc, current) => {
     if (!current.name) return acc;
-    const existingIndex = acc.findIndex(item => item.name.trim().toLowerCase() === current.name.trim().toLowerCase());
+    
+    const existingIndex = acc.findIndex(
+      item => item.name.trim().toLowerCase() === current.name.trim().toLowerCase()
+    );
     
     if (existingIndex === -1) {
       acc.push(current);
     } else {
-      if (new Date(current.datetime) > new Date(acc[existingIndex].datetime)) {
+      const existingItem = acc[existingIndex];
+      if (current.isTemplate && !existingItem.isTemplate) {
+        acc[existingIndex] = current;
+      } else if (new Date(current.datetime) > new Date(existingItem.datetime) && (current.isTemplate === existingItem.isTemplate)) {
         acc[existingIndex] = current;
       }
     }
     return acc;
   }, []);
 
-  // Format the unlogged recommendations array into matching structures
-  const formattedSuggestions = (pendingSuggestions || []).map((sug, idx) => ({
-    _id: `suggested-local-${idx}-${sug.name || 'exercise'}`,
-    name: sug.name ? `Suggested: ${sug.name}` : "Suggested Routine",
-    datetime: new Date(),
-    isUnloggedSuggestion: true, // Internal flag to style differently
-    exercises: [
-      {
-        name: sug.name || "",
-        weight: sug.weight || 0,
-        reps: sug.reps || 0,
-        sets: sug.sets || 0,
-        time: sug.time || 0,
-        isOriginal: false // Unlocked fields so users can fully edit targets
-      }
-    ]
-  }));
-
-  // Combine both arrays so the AI recommended items float seamlessly right at the top
-  const displayRoutines = [...formattedSuggestions, ...backendRoutines];
-  
   function editWorkout(routine) {
     setActiveWorkout({
       isEditing: true,
@@ -60,13 +57,14 @@ export default function Workouts({ pendingSuggestions, clearPendingSuggestions }
       originalDate: routine.datetime, 
       originalName: routine.name,
       name: routine.name,
-      exercises: routine.exercises.map(ex => ({ ...ex })) 
+      exercises: routine.exercises.map(ex => ({ ...ex, isOriginal: false }))
     });
   }
 
   function startWorkout(baseline) {
     setActiveWorkout({
       isEditing: false,
+      templateId: baseline._id, 
       name: baseline.name,
       exercises: baseline.exercises.map(ex => ({
         ...ex,
@@ -74,7 +72,7 @@ export default function Workouts({ pendingSuggestions, clearPendingSuggestions }
         reps: ex.reps || 0,
         sets: ex.sets || 0,
         time: ex.time || 0,
-        isOriginal: !baseline.isUnloggedSuggestion // If suggestion card, keep rows fully open
+        isOriginal: true 
       }))
     });
   }
@@ -94,9 +92,7 @@ export default function Workouts({ pendingSuggestions, clearPendingSuggestions }
         method: 'DELETE',
         credentials: 'include'
       });
-      if (res.ok) {
-        setWorkouts(prev => prev.filter(w => w._id !== deleteModal.targetId));
-      }
+      if (res.ok) fetchWorkouts();
     } else {
       const updated = activeWorkout.exercises.filter((_, i) => i !== deleteModal.index);
       setActiveWorkout({ ...activeWorkout, exercises: updated });
@@ -106,77 +102,57 @@ export default function Workouts({ pendingSuggestions, clearPendingSuggestions }
 
   const updateExercise = (index, field, value) => {
     const updated = [...activeWorkout.exercises];
-    
     if (field === 'name') {
       updated[index][field] = value;
     } else {
       updated[index][field] = value === "" ? "" : Number(value);
     }
-    
     setActiveWorkout({ ...activeWorkout, exercises: updated });
-    
-    if (field === 'name' && value.trim() !== "") {
-      setShowExerciseWarning(false);
-    }
   }
 
   async function saveWorkout() {
     const allValidExercises = activeWorkout.exercises.filter(ex => ex.name.trim() !== "");
-    
     if (allValidExercises.length === 0) {
       setShowExerciseWarning(true);
       return;
     }
 
-    const isEditingBackend = activeWorkout.isEditing && !activeWorkout._id.startsWith('suggested-local-');
-    const url = isEditingBackend
+    const isExistingEdit = activeWorkout._id ? true : false;
+    const url = isExistingEdit
       ? `http://localhost:5000/api/workouts/${activeWorkout._id}` 
       : "http://localhost:5000/api/workouts";
     
-    const method = isEditingBackend ? "PUT" : "POST";
-    const workoutDate = activeWorkout.isEditing ? activeWorkout.originalDate : new Date();
+    const method = isExistingEdit ? "PUT" : "POST";
 
     try {
       const cleanedExercises = allValidExercises.map(({ isOriginal, ...rest }) => ({
         ...rest,
-        weight: rest.weight === "" ? 0 : rest.weight,
-        reps: rest.reps === "" ? 0 : rest.reps,
-        sets: rest.sets === "" ? 0 : rest.sets,
-        time: rest.time === "" ? 0 : rest.time,
+        weight: rest.weight === "" ? 0 : Number(rest.weight),
+        reps: rest.reps === "" ? 0 : Number(rest.reps),
+        sets: rest.sets === "" ? 0 : Number(rest.sets),
+        time: rest.time === "" ? 0 : Number(rest.time),
       }));
+
+     const shouldBeTemplate = activeWorkout.isEditing || activeWorkout.templateId === undefined;
+
+      const payload = {
+        name: activeWorkout.name,
+        datetime: new Date(), 
+        exercises: cleanedExercises,
+        isTemplate: shouldBeTemplate 
+      };
 
       const response = await fetch(url, {
         method: method,
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          name: activeWorkout.name,
-          datetime: workoutDate, 
-          exercises: cleanedExercises 
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (response.ok) {
-        const saved = await response.json();
-        
-        if (isEditingBackend) {
-          setWorkouts(prev => prev.map(w => {
-            if (w._id === saved._id) return saved;
-            if (activeWorkout.originalName && w.name === activeWorkout.originalName) {
-              return { ...w, name: saved.name };
-            }
-            return w;
-          }));
-        } else {
-          setWorkouts(prev => [saved, ...prev]);
-          // If clearing out a temporary selection setup card upon log completion
-          if (activeWorkout._id && activeWorkout._id.startsWith('suggested-local-')) {
-            clearPendingSuggestions();
-          }
-        }
-        
         setActiveWorkout(null);
-        setShowExerciseWarning(false); 
+        setShowExerciseWarning(false);
+        fetchWorkouts(); 
       }
     } catch (err) {
       console.error("Save error:", err);
@@ -198,13 +174,13 @@ export default function Workouts({ pendingSuggestions, clearPendingSuggestions }
         </div>
       )}
 
-      <h1>{activeWorkout ? (activeWorkout.isEditing ? `Editing Workout: ${activeWorkout.name}` : `Active Session: ${activeWorkout.name}`) : "My Workouts"}</h1>
+      <h1>{activeWorkout ? (activeWorkout.isEditing ? `Editing Template: ${activeWorkout.name}` : `Active Session: ${activeWorkout.name}`) : "My Workouts"}</h1>
 
       {!activeWorkout ? (
         <div style={{ width: '100%' }}>
           {!showAddRoutine ? (
             <button className="counter" style={{width: '100%', marginBottom: '20px'}} onClick={() => setShowAddRoutine(true)}>
-              + Create New Routine
+              + Create New Routine Template
             </button>
           ) : (
             <div>
@@ -226,49 +202,29 @@ export default function Workouts({ pendingSuggestions, clearPendingSuggestions }
                       setShowNameWarning(true);
                       return;
                     }
-                    
-                    setActiveWorkout({name: newRoutineName, exercises: [{name: "", weight: 0, reps: 0, sets: 0, time: 0}]}); 
+                    setActiveWorkout({isEditing: true, name: newRoutineName, exercises: [{name: "", weight: 0, reps: 0, sets: 0, time: 0}]}); 
                     setShowAddRoutine(false); 
-                    setShowNameWarning(false);
                     setNewRoutineName("");
                   }}
                 >
                   Add
                 </button>
               </div>
-              
-              {showNameWarning && (
-                <p style={{ color: '#8B0000', fontSize: '14px', margin: '-5px 0 15px 0', textAlign: 'left', fontWeight: 'bold' }}>
-                  Please add a routine name before clicking Add.
-                </p>
-              )}
             </div>
           )}
 
-          {displayRoutines.map(r => (
+          {uniqueRoutines.map(r => (
             <div key={r._id} style={itemStyle}>
               <div style={{textAlign: 'left'}}>
                 <div style={{fontWeight: 'bold', fontSize: '18px', textTransform: 'capitalize'}}>{r.name}</div>
                 <div style={{fontSize: '12px', color: '#666'}}>
-                  {r.isUnloggedSuggestion ? "✨ AI Recommendation" : `Last: ${new Date(r.datetime).toLocaleDateString()}`}
+                  {r.name.startsWith("Suggested:") ? "✨ AI Recommendation" : "Custom Template"}
                 </div>
               </div>
               <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
                 <button className="counter" onClick={() => startWorkout(r)}>Start</button>
                 <button className="counter" onClick={() => editWorkout(r)}>Edit</button>
-                <button 
-                  className="counter" 
-                  style={{background: '#8B0000', ...deleteBtnStyle}} 
-                  onClick={() => {
-                    if (r.isUnloggedSuggestion) {
-                      clearPendingSuggestions();
-                    } else {
-                      openDeleteModal('routine', r._id);
-                    }
-                  }}
-                >
-                  ✕
-                </button>
+                <button className="counter" style={{background: '#8B0000', ...deleteBtnStyle}} onClick={() => openDeleteModal('routine', r._id)}>✕</button>
               </div>
             </div>
           ))}
@@ -301,7 +257,7 @@ export default function Workouts({ pendingSuggestions, clearPendingSuggestions }
             const isFieldDisabled = !activeWorkout.isEditing && ex.isOriginal;
 
             return (
-              <div key={i} style={{...exerciseRowStyle, opacity: isFieldDisabled ? 0.65 : 1}}>
+              <div key={i} style={{...exerciseRowStyle, opacity: isFieldDisabled ? 0.85 : 1}}>
                 <input 
                   value={ex.name} 
                   onChange={(e) => updateExercise(i, 'name', e.target.value)} 
@@ -310,45 +266,10 @@ export default function Workouts({ pendingSuggestions, clearPendingSuggestions }
                   disabled={isFieldDisabled}
                 />
                 
-                <input 
-                  type="number" 
-                  value={ex.weight === 0 ? "" : ex.weight} 
-                  placeholder="0"
-                  onChange={(e) => updateExercise(i, 'weight', e.target.value)} 
-                  style={{flex: 1, width: '40px'}} 
-                  disabled={isFieldDisabled} 
-                  onFocus={(e) => e.target.select()} 
-                />
-
-                <input 
-                  type="number" 
-                  value={ex.reps === 0 ? "" : ex.reps} 
-                  placeholder="0"
-                  onChange={(e) => updateExercise(i, 'reps', e.target.value)} 
-                  style={{flex: 1, width: '40px'}} 
-                  disabled={isFieldDisabled} 
-                  onFocus={(e) => e.target.select()}
-                />
-
-                <input 
-                  type="number" 
-                  value={ex.sets === 0 ? "" : ex.sets} 
-                  placeholder="0"
-                  onChange={(e) => updateExercise(i, 'sets', e.target.value)} 
-                  style={{flex: 1, width: '40px'}} 
-                  disabled={isFieldDisabled} 
-                  onFocus={(e) => e.target.select()}
-                />
-
-                <input 
-                  type="number" 
-                  value={ex.time === 0 ? "" : ex.time} 
-                  placeholder="0"
-                  onChange={(e) => updateExercise(i, 'time', e.target.value)} 
-                  style={{flex: 1, width: '40px'}} 
-                  disabled={isFieldDisabled} 
-                  onFocus={(e) => e.target.select()}
-                />
+                <input type="number" value={ex.weight === 0 ? "" : ex.weight} placeholder="0" onChange={(e) => updateExercise(i, 'weight', e.target.value)} style={{flex: 1, width: '40px'}} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
+                <input type="number" value={ex.reps === 0 ? "" : ex.reps} placeholder="0" onChange={(e) => updateExercise(i, 'reps', e.target.value)} style={{flex: 1, width: '40px'}} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
+                <input type="number" value={ex.sets === 0 ? "" : ex.sets} placeholder="0" onChange={(e) => updateExercise(i, 'sets', e.target.value)} style={{flex: 1, width: '40px'}} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
+                <input type="number" value={ex.time === 0 ? "" : ex.time} placeholder="0" onChange={(e) => updateExercise(i, 'time', e.target.value)} style={{flex: 1, width: '40px'}} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
                 
                 {!isFieldDisabled ? (
                   <button onClick={() => openDeleteModal('exercise', i)} style={deleteBtnStyle}>✕</button>
@@ -359,23 +280,17 @@ export default function Workouts({ pendingSuggestions, clearPendingSuggestions }
             );
           })}
 
-          {!activeWorkout.isEditing && (
-            <button className="counter" style={{width: '100%', background: 'transparent', color: '#38422B', border: '1px dashed #38422B', marginBottom: '20px'}} 
-                    onClick={() => setActiveWorkout({...activeWorkout, exercises: [...activeWorkout.exercises, {name: "", weight: 0, reps: 0, sets: 0, time: 0}]})}>
-              + Add Exercise
+          {activeWorkout.isEditing && (
+            <button className="counter" style={{width: '100%', background: 'transparent', color: '#38422B', border: '1px dashed #38422B', marginBottom: '20px'} } 
+                    onClick={() => setActiveWorkout({...activeWorkout, exercises: [...activeWorkout.exercises, {name: "", weight: 0, reps: 0, sets: 0, time: 0, isOriginal: false}]})}>
+              + Add Exercise to Template
             </button>
           )}
 
-          {showExerciseWarning && (
-            <p style={{ color: '#8B0000', fontSize: '14px', margin: '0 0 15px 0', textAlign: 'center', fontWeight: 'bold' }}>
-              Please make sure at least one exercise has a valid name before logging your session.
-            </p>
-          )}
-
-          <div style={{display: 'flex', gap: '10px'}}>
+          <div style={{display: 'flex', gap: '10px', marginTop: '20px'}}>
             <button className="counter" style={{background: '#8B0000', flex: 1}} onClick={() => setActiveWorkout(null)}>Exit</button>
             <button className="counter" style={{flex: 2}} onClick={saveWorkout}>
-              {activeWorkout.isEditing ? "Save Edits" : "Log Session"}
+              {activeWorkout.isEditing ? "Save Template Config" : "Log Session to History"}
             </button>
           </div>
         </div>

@@ -15,7 +15,9 @@ export default function History() {
   useEffect(() => {
     fetch("http://localhost:5000/api/workouts", { credentials: 'include' })
       .then(res => res.json())
-      .then(data => { if (Array.isArray(data)) setWorkouts(data); })
+      .then(data => { if (Array.isArray(data)) {const trueLoggedHistory = data.filter(workout => !workout.isTemplate);
+          setWorkouts(trueLoggedHistory); 
+        } })
       .catch(err => console.error("Load error:", err));
   }, [])
 
@@ -30,13 +32,11 @@ export default function History() {
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
-  // Filter workout log by workout name
   const filteredWorkouts = workouts.filter(log => {
     if (!workoutSearch.trim()) return true
     return log.name && log.name.toLowerCase().includes(workoutSearch.toLowerCase())
   })
 
-  // Build dropdown: unique exercise names matching the exercise search
   function handleExerciseSearchChange(e) {
     const query = e.target.value
     setExerciseSearch(query)
@@ -71,7 +71,6 @@ export default function History() {
     setExerciseDropdown([])
   }
 
-  // Build graph data for selected exercise
   function buildGraphData() {
     if (!selectedExercise) return []
 
