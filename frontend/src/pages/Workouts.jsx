@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import '../App.css'
 
-export default function Workouts() {
+export default function Workouts({ pendingSuggestions, clearPendingSuggestions }) {
   const [workouts, setWorkouts] = useState([])
   const [activeWorkout, setActiveWorkout] = useState(null)
   const [newRoutineName, setNewRoutineName] = useState("")
@@ -17,7 +17,8 @@ export default function Workouts() {
       .catch(err => console.error("Load error:", err));
   }, [])
 
-  const routines = workouts.reduce((acc, current) => {
+  // Process and group saved workouts from the backend database
+  const backendRoutines = workouts.reduce((acc, current) => {
     if (!current.name) return acc;
     const existingIndex = acc.findIndex(item => item.name.trim().toLowerCase() === current.name.trim().toLowerCase());
     
@@ -30,6 +31,27 @@ export default function Workouts() {
     }
     return acc;
   }, []);
+
+  // Format the unlogged recommendations array into matching structures
+  const formattedSuggestions = (pendingSuggestions || []).map((sug, idx) => ({
+    _id: `suggested-local-${idx}-${sug.name || 'exercise'}`,
+    name: sug.name ? `Suggested: ${sug.name}` : "Suggested Routine",
+    datetime: new Date(),
+    isUnloggedSuggestion: true, // Internal flag to style differently
+    exercises: [
+      {
+        name: sug.name || "",
+        weight: sug.weight || 0,
+        reps: sug.reps || 0,
+        sets: sug.sets || 0,
+        time: sug.time || 0,
+        isOriginal: false // Unlocked fields so users can fully edit targets
+      }
+    ]
+  }));
+
+  // Combine both arrays so the AI recommended items float seamlessly right at the top
+  const displayRoutines = [...formattedSuggestions, ...backendRoutines];
   
   function editWorkout(routine) {
     setActiveWorkout({
@@ -52,7 +74,7 @@ export default function Workouts() {
         reps: ex.reps || 0,
         sets: ex.sets || 0,
         time: ex.time || 0,
-        isOriginal: true 
+        isOriginal: !baseline.isUnloggedSuggestion // If suggestion card, keep rows fully open
       }))
     });
   }
@@ -82,14 +104,12 @@ export default function Workouts() {
     setDeleteModal({ isOpen: false, targetId: null, type: null, index: null });
   }
 
-  // FIXED: Safely handles empty string values while typing numbers
   const updateExercise = (index, field, value) => {
     const updated = [...activeWorkout.exercises];
     
     if (field === 'name') {
       updated[index][field] = value;
     } else {
-      // If the field is empty, preserve it as an empty string in state so typing doesn't lock
       updated[index][field] = value === "" ? "" : Number(value);
     }
     
@@ -108,15 +128,15 @@ export default function Workouts() {
       return;
     }
 
-    const url = activeWorkout.isEditing 
+    const isEditingBackend = activeWorkout.isEditing && !activeWorkout._id.startsWith('suggested-local-');
+    const url = isEditingBackend
       ? `http://localhost:5000/api/workouts/${activeWorkout._id}` 
       : "http://localhost:5000/api/workouts";
     
-    const method = activeWorkout.isEditing ? "PUT" : "POST";
+    const method = isEditingBackend ? "PUT" : "POST";
     const workoutDate = activeWorkout.isEditing ? activeWorkout.originalDate : new Date();
 
     try {
-      // Maps across exercises and coerces any temporary "" state strings into structural 0s for MongoDB storage
       const cleanedExercises = allValidExercises.map(({ isOriginal, ...rest }) => ({
         ...rest,
         weight: rest.weight === "" ? 0 : rest.weight,
@@ -139,7 +159,7 @@ export default function Workouts() {
       if (response.ok) {
         const saved = await response.json();
         
-        if (activeWorkout.isEditing) {
+        if (isEditingBackend) {
           setWorkouts(prev => prev.map(w => {
             if (w._id === saved._id) return saved;
             if (activeWorkout.originalName && w.name === activeWorkout.originalName) {
@@ -149,6 +169,10 @@ export default function Workouts() {
           }));
         } else {
           setWorkouts(prev => [saved, ...prev]);
+          // If clearing out a temporary selection setup card upon log completion
+          if (activeWorkout._id && activeWorkout._id.startsWith('suggested-local-')) {
+            clearPendingSuggestions();
+          }
         }
         
         setActiveWorkout(null);
@@ -221,16 +245,30 @@ export default function Workouts() {
             </div>
           )}
 
-          {routines.map(r => (
+          {displayRoutines.map(r => (
             <div key={r._id} style={itemStyle}>
               <div style={{textAlign: 'left'}}>
-                <div style={{fontWeight: 'bold', fontSize: '18px'}}>{r.name}</div>
-                <div style={{fontSize: '12px', color: '#666'}}>Last: {new Date(r.datetime).toLocaleDateString()}</div>
+                <div style={{fontWeight: 'bold', fontSize: '18px', textTransform: 'capitalize'}}>{r.name}</div>
+                <div style={{fontSize: '12px', color: '#666'}}>
+                  {r.isUnloggedSuggestion ? "✨ AI Recommendation" : `Last: ${new Date(r.datetime).toLocaleDateString()}`}
+                </div>
               </div>
               <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
                 <button className="counter" onClick={() => startWorkout(r)}>Start</button>
                 <button className="counter" onClick={() => editWorkout(r)}>Edit</button>
-                <button className="counter" style={{background: '#8B0000', ...deleteBtnStyle}} onClick={() => openDeleteModal('routine', r._id)}>✕</button>
+                <button 
+                  className="counter" 
+                  style={{background: '#8B0000', ...deleteBtnStyle}} 
+                  onClick={() => {
+                    if (r.isUnloggedSuggestion) {
+                      clearPendingSuggestions();
+                    } else {
+                      openDeleteModal('routine', r._id);
+                    }
+                  }}
+                >
+                  ✕
+                </button>
               </div>
             </div>
           ))}
@@ -272,7 +310,6 @@ export default function Workouts() {
                   disabled={isFieldDisabled}
                 />
                 
-                {/* Fixed Inputs: value maps cleanly to empty strings for painless typing updates */}
                 <input 
                   type="number" 
                   value={ex.weight === 0 ? "" : ex.weight} 

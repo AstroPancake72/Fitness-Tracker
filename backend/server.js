@@ -6,6 +6,7 @@ require("dotenv").config();
 const bcrypt = require("bcrypt");
 const http = require("http");
 const { Server } = require("socket.io");
+const axios = require('axios');
 
 const app = express();
 const server = http.createServer(app);
@@ -82,7 +83,7 @@ const workoutSchema = new mongoose.Schema({
 const profileSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, unique: true },
-    currentGoal: { type: String, default: null },
+    currentGoal: {type: String, enum: ['Getting Stronger', 'Increasing Muscle Mass', 'Losing Weight', null], default: null},
     fullName: { type: String, default: "" },
     age: { type: Number, default: null },
     height: { type: Number, default: null },
@@ -724,8 +725,69 @@ app.get('/api/goals/progress', async (req, res) => {
 });
 
 
+//exercise suggestions
+app.get("/api/exercise-suggestions", async (req, res) => {
+  if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
 
+  try {
+    const profile = await Profile.findOne({ userId: req.session.userId });
+    
+    const userGoal = profile?.currentGoal || "Getting Stronger";
 
+    if (!process.env.NINJA_API_KEY) {
+      console.warn(" No NINJA_API_KEY found. Using local fallback data.");
+      return res.json({
+        goal: userGoal,
+        suggestions: [
+          { name: "Push-ups (Local Fallback)", type: "strength", instructions: "Standard bodyweight pushups.", sets: 3, reps: 10, weight: 0, time: null },
+          { name: "Jumping Jacks (Local Fallback)", type: "cardio", instructions: "Standard jumping jacks.", sets: 1, reps: 1, weight: 0, time: 10 }
+        ]
+      });
+    }
+
+    let typeFilter = "strength";
+    
+    if (userGoal === "Losing Weight") {
+      typeFilter = "cardio";
+    } else if (userGoal === "Increasing Muscle Mass") {
+      typeFilter = "strength"; 
+    } else if (userGoal === "Getting Stronger") {
+      typeFilter = "olympic_weightlifting"; 
+    }
+
+    const apiResponse = await axios.get("https://api.api-ninjas.com/v1/exercises", {
+      params: { type: typeFilter },
+      headers: {
+        'X-Api-Key': process.env.NINJA_API_KEY 
+      }
+    });
+
+    const suggestions = apiResponse.data.slice(0, 5).map(exercise => {
+      let baselineWeight = 0;
+      if (userGoal === "Increasing Muscle Mass") baselineWeight = 25;
+      if (userGoal === "Getting Stronger") baselineWeight = 45; 
+      return {
+        name: exercise.name,
+        type: exercise.type,
+        instructions: exercise.instructions,
+        sets: exercise.type === "cardio" ? 1 : 4,
+        reps: exercise.type === "cardio" ? 1 : 8, 
+        weight: baselineWeight,
+        time: exercise.type === "cardio" ? 25 : null
+      };
+    });
+
+    res.json({
+      goal: userGoal,
+      suggestions: suggestions
+    });
+
+  } catch (error) {
+    console.error("API-Ninjas request failed:", error.response?.data || error.message);
+    res.status(500).json({ message: "Could not fetch suggestions from the internet." });
+  }
+});
+//
 server.listen(5000, () => {
   console.log("Server running on port 5000");
 });

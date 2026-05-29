@@ -9,17 +9,21 @@ import History from './pages/History';
 import Connect from './pages/Connect';
 import Messages, { disconnectSocket } from './pages/Messages';
 import GoalsTab from './pages/GoalsTab';
- 
+import ExerciseSuggestions from './pages/ExerciseSuggestions'; 
+
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true); 
-
+  
+  // Tracks multiple suggested exercise templates locally
+  const [pendingSuggestions, setPendingSuggestions] = useState([]);
+  
   const [page, setPage] = useState(() => {
     return localStorage.getItem('current_page') || 'login';
   });
   
   const [openMessageUserId, setOpenMessageUserId] = useState(null);
- 
+
   useEffect(() => {
     async function checkLogin() {
       try {
@@ -59,12 +63,18 @@ function App() {
     setPage(newPage);
     localStorage.setItem('current_page', newPage);
   }
- 
+
+  function handleSelectSuggestedExercise(exercise) {
+    // Append the selected suggestion into state without changing tabs
+    setPendingSuggestions(prev => [...prev, exercise]);
+    alert(`"${exercise.name}" added to your routines dashboard!`);
+  }
+
   function handleOpenMessage(userId) {
     setOpenMessageUserId(userId);
     navigateTo('messages'); 
   }
- 
+
   async function handleLogout() {
     try {
       await fetch("http://localhost:5000/api/logout", {
@@ -87,7 +97,7 @@ function App() {
       </div>
     );
   }
- 
+
   return (
     <>
       {loggedIn ? (
@@ -96,15 +106,24 @@ function App() {
             <button onClick={() => navigateTo('workouts')} className="counter" style={page === 'workouts' ? activeNavBtn : {}}>Workouts</button>
             <button onClick={() => navigateTo('history')} className="counter" style={page === 'history' ? activeNavBtn : {}}>History</button>
             <button onClick={() => navigateTo('goals')} className="counter" style={page === 'goals' ? activeNavBtn : {}}>Goals</button>
+            <button onClick={() => navigateTo('suggestions')} className="counter" style={page === 'suggestions' ? activeNavBtn : {}}>Suggestions</button>
             <button onClick={() => navigateTo('profile')} className="counter" style={page === 'profile' ? activeNavBtn : {}}>Profile</button>
             <button onClick={() => navigateTo('connect')} className="counter" style={page === 'connect' ? activeNavBtn : {}}>Connect</button>
             <button onClick={() => navigateTo('messages')} className="counter" style={page === 'messages' ? activeNavBtn : {}}>Messages</button>
             <button onClick={handleLogout} className="counter">Logout</button>
           </nav>
- 
-          {page === 'workouts' && <Workouts />}
+
+          {page === 'workouts' && (
+            <Workouts 
+              pendingSuggestions={pendingSuggestions} 
+              clearPendingSuggestions={() => setPendingSuggestions([])} 
+            />
+          )}
           {page === 'history' && <History />}
           {page === 'goals' && <GoalsTab />}
+          {page === 'suggestions' && (
+            <ExerciseSuggestions onSelectSuggestedExercise={handleSelectSuggestedExercise} />
+          )}
           {page === 'profile' && <Profile />}
           {page === 'connect' && <Connect onOpenMessage={handleOpenMessage} />}
           {page === 'messages' && (
@@ -130,11 +149,11 @@ function App() {
     </>
   );
 }
- 
+
 const activeNavBtn = {
   borderColor: '#9FB873',
   background: '#38422B',
   color: 'white',
 };
- 
+
 export default App;
