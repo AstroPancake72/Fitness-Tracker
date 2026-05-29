@@ -1,6 +1,9 @@
 const express = require("express");
 const session = require("express-session");
 const cors = require("cors");
+const axios = require("axios");
+const multer = require("multer");
+const path = require("path");
 const mongoose = require("mongoose");
 require("dotenv").config();
 const bcrypt = require("bcrypt");
@@ -24,6 +27,7 @@ app.use(
   })
 );
 app.use(express.json());
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 const sessionMiddleware = session({
   secret: process.env.SESSION_SECRET,
@@ -95,11 +99,17 @@ const profileSchema = new mongoose.Schema({
   height: { type: Number, default: null },
   weight: { type: Number, default: null },
   dietaryRestrictions: { type: [String], default: [] },
+  fitnessGoal: { type: String, default: "" },
+  activityLevel: { type: String, default: "" },
   bio: { type: String, default: "" },
+<<<<<<< HEAD
   connections: [{
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'Profile' },
     status: { type: String, enum: ['pending', 'connected'] }
   }]
+=======
+  profileImage: { type: String, default: "" },
+>>>>>>> diet-plan
 }, { timestamps: true });
 
 const Profile = mongoose.model("Profile", profileSchema);
@@ -128,6 +138,29 @@ const pendingUserSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now, expires: 600 } // Auto-deletes after 10 mins!
 });
 const PendingUser = mongoose.model("PendingUser", pendingUserSchema);
+
+const dietPlanSchema = new mongoose.Schema({
+  userId: String,
+  generatedAt: {
+    type: Date,
+    default: Date.now,
+  },
+  plan: Object,
+});
+
+const DietPlan = mongoose.model("DietPlan", dietPlanSchema);
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads/");
+  },
+  filename: (req, file, cb) => {
+    const uniqueName = `${Date.now()}-${file.originalname}`;
+    cb(null, uniqueName);
+  },
+});
+
+const upload = multer({ storage });
 
 // 2. Signup Route
 app.post("/api/signup", async (req, res) => {
@@ -310,14 +343,16 @@ app.put("/api/profile", async (req, res) => {
   }
 
   try {
-    const {
-      fullName,
-      age,
-      height,
-      weight,
-      dietaryRestrictions,
-      bio,
-    } = req.body;
+  const {
+    fullName,
+    age,
+    height,
+    weight,
+    dietaryRestrictions,
+    fitnessGoal,
+    activityLevel,
+    bio,
+  } = req.body;
 
     const updatedProfile = await Profile.findOneAndUpdate(
       { userId: req.session.userId },
@@ -327,9 +362,11 @@ app.put("/api/profile", async (req, res) => {
         height,
         weight,
         dietaryRestrictions,
+        fitnessGoal,
+        activityLevel,
         bio,
       },
-      { new: true, upsert: true, runValidators: true }
+      { returnDocument: "after", upsert: true, runValidators: true }
     );
 
     res.json(updatedProfile);
@@ -337,6 +374,143 @@ app.put("/api/profile", async (req, res) => {
     console.error("Profile save error:", err);
     res.status(500).json({ message: "Failed to save profile" });
   }
+});
+
+app.post("/api/profile/image", upload.single("profileImage"), async (req, res) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ message: "Not logged in" });
+  }
+
+  if (!req.file) {
+    return res.status(400).json({ message: "No image uploaded" });
+  }
+
+  const imagePath = `/uploads/${req.file.filename}`;
+
+  const updatedProfile = await Profile.findOneAndUpdate(
+    { userId: req.session.userId },
+    { profileImage: imagePath },
+    { returnDocument: "after", upsert: true }
+  );
+
+  res.json(updatedProfile);
+});
+
+function calculateTargetCalories(profile) {
+  const weight = Number(profile.weight);
+  let calories = weight * 14;
+
+  if (profile.fitnessGoal === "lose weight") calories -= 400;
+  if (profile.fitnessGoal === "gain muscle") calories += 300;
+
+  if (profile.activityLevel === "low") calories -= 100;
+  if (profile.activityLevel === "high") calories += 200;
+
+  return Math.round(calories);
+}
+
+function mapDietaryRestrictions(restrictions = []) {
+  const lower = restrictions.map((r) => r.toLowerCase().trim());
+
+  let diet = "";
+  if (lower.includes("vegan")) diet = "vegan";
+  else if (lower.includes("vegetarian")) diet = "vegetarian";
+
+  const intolerances = [];
+
+  if (lower.includes("gluten-free")) intolerances.push("gluten");
+  if (lower.includes("dairy-free")) intolerances.push("dairy");
+  if (lower.includes("peanut-free")) intolerances.push("peanut");
+
+  return {
+    diet,
+    intolerances: intolerances.join(","),
+  };
+}
+
+app.post("/api/generate-diet-plan", async (req, res) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ message: "Not logged in" });
+  }
+
+  try {
+    const profile = await Profile.findOne({ userId: req.session.userId });
+
+    if (
+      !profile ||
+      !profile.age ||
+      !profile.height ||
+      !profile.weight ||
+      !profile.fitnessGoal ||
+      !profile.activityLevel
+    ) {
+      return res.status(400).json({
+        message:
+          "Complete your profile, fitness goal, and activity level before generating a diet plan.",
+      });
+    }
+
+    const targetCalories = calculateTargetCalories(profile);
+    const { diet, intolerances } = mapDietaryRestrictions(
+      profile.dietaryRestrictions
+    );
+
+    const response = await axios.get(
+      "https://api.spoonacular.com/mealplanner/generate",
+      {
+        params: {
+          apiKey: process.env.SPOONACULAR_API_KEY,
+          timeFrame: "day",
+          targetCalories,
+          diet,
+          intolerances,
+        },
+      }
+    );
+
+    const savedPlan = await DietPlan.findOneAndUpdate(
+      { userId: req.session.userId },
+      {
+        generatedAt: new Date(),
+        plan: {
+          targetCalories,
+          diet: diet || "none",
+          intolerances: intolerances || "none",
+          meals: response.data.meals,
+          nutrients: response.data.nutrients,
+        },
+      },
+      {
+        upsert: true,
+        returnDocument: "after",
+      }
+    );
+
+    res.json(savedPlan);
+  } catch (err) {
+    console.error("Diet API error:", err.response?.data || err.message);
+    res.status(500).json({ message: "Could not generate diet plan." });
+  }
+});
+
+app.get("/api/diet-suggestions", async (req, res) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ message: "Not logged in" });
+  }
+
+  const dietPlan = await DietPlan.findOne({ userId: req.session.userId });
+
+  if (!dietPlan) {
+    return res.status(404).json({
+      message: "No diet plan found. Click Generate Diet Plan to create one.",
+    });
+  }
+
+  res.json(dietPlan);
+});
+
+app.listen(5000, () => {
+  console.log("Server running on port 5000");
 });
 
 // 4. Protected Route Example

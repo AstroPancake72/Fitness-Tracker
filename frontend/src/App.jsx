@@ -9,6 +9,9 @@ import History from './pages/History';
 import Connect from './pages/Connect';
 import Messages, { disconnectSocket } from './pages/Messages';
  
+import DietSuggestions from "./pages/DietSuggestions";
+
+
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true); 
@@ -91,6 +94,7 @@ function App() {
     <>
       {loggedIn ? (
         <div>
+<<<<<<< HEAD
           <nav style={{ display: 'flex', gap: 12, padding: 12, justifyContent: 'center', background: '#CCD5C0', borderBottom: '2px solid #38422B' }}>
             <button onClick={() => navigateTo('workouts')} className="counter" style={page === 'workouts' ? activeNavBtn : {}}>Workouts</button>
             <button onClick={() => navigateTo('history')} className="counter" style={page === 'history' ? activeNavBtn : {}}>History</button>
@@ -110,6 +114,30 @@ function App() {
               onClearOpenWith={() => setOpenMessageUserId(null)}
             />
           )}
+=======
+          <nav style={{ display: 'flex', gap: 12, padding: 12, justifyContent: 'center' }}>
+            <button onClick={() => setPage('workouts')} className="counter">Workouts</button>
+            <button onClick={() => setPage('history')} className="counter">History</button>
+            <button onClick={() => setPage('profile')} className="counter">Profile</button>
+            <button onClick={() => { setLoggedIn(false); setPage('login'); }} className="counter">Logout</button>
+            <button onClick={() => setPage('diet')} className="counter"> Diet Suggestions</button>
+          </nav>
+
+          {page === 'workouts' ? (
+            <Workouts />
+          ) : page === 'history' ? (
+            <History />
+          ): page === 'profile' ? (
+            <Profile />
+          ) : page === 'diet' ? (
+            <DietSuggestions />
+          ) : (
+            <div style={{ padding: 24 }}>
+              <h1>Welcome to Fitness Tracker</h1>
+              <p>You are logged in.</p>
+            </div>
+    )}
+>>>>>>> diet-plan
         </div>
       ) : (
         page === 'login' ? (

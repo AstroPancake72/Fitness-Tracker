@@ -18,3 +18,7 @@ Thumbs.db
 
 #personal settings dni
 .vscode/
+
+#icon uploads
+backend/uploads/*
+!backend/uploads/.gitkeep
