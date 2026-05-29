@@ -203,7 +203,6 @@ app.post("/api/login", async (req, res) => {
     user.twoFactorCode = code;
     user.twoFactorExpires = Date.now() + 10 * 60 * 1000; 
     await user.save();
-/*
     // Send the email
     await transporter.sendMail({
       from: process.env.EMAIL_USER,
@@ -211,8 +210,6 @@ app.post("/api/login", async (req, res) => {
       subject: "Your Fitness Tracker Login Code",
       text: `Your 6-digit login code is: ${code}. It expires in 10 minutes.`
     });
-*/
-    console.log(`2FA code for ${user.email}: ${code}`);
     // Tell the frontend to show the 2FA screen
     res.status(200).json({ message: "Code sent", requires2FA: true });
 
@@ -399,8 +396,6 @@ app.get('/api/users', async (req, res) => {
   try {
     const currentUserId = req.session.userId;
     const currentProfile = await Profile.findOne({ userId: currentUserId });
-    
-    console.log("currentProfile.connections:", currentProfile.connections); 
     
     const otherProfiles = await Profile.find({ userId: { $ne: currentUserId } });
 
