@@ -82,7 +82,17 @@ const workoutSchema = new mongoose.Schema({
 const profileSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, unique: true },
-    currentGoal: { type: String, default: null },
+    currentGoal: {
+    type: String,
+    enum: [
+    'Getting Stronger', 
+    'Increasing Muscle Mass', 
+    'Losing Weight', 
+    'Building Consistency', 
+    'Increasing Training Volume', 
+    null
+    ],
+    default: null},
     fullName: { type: String, default: "" },
     age: { type: Number, default: null },
     height: { type: Number, default: null },
@@ -99,6 +109,47 @@ const profileSchema = new mongoose.Schema(
   { timestamps: true }
 );
 profileSchema.index({ "connections.userId": 1 });
+
+const goalSchema = new mongoose.Schema({
+  user: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'User', 
+    required: true 
+  },
+  // What kind of goal is this?
+  goalType: { 
+    type: String, 
+    enum: ['Strength', 'Bodyweight', 'Consistency', 'Volume'], 
+    required: true 
+  },
+  // The specific movement (e.g., 'Bench Press', 'Squat') - only needed for Strength/Volume
+  exerciseName: { 
+    type: String,
+    trim: true
+  },
+  // The finish line (e.g., 190 lbs)
+  targetValue: { 
+    type: Number, 
+    required: true 
+  },
+  // Where they started (e.g., 135 lbs). Crucial for rendering a meaningful progress bar (0 to 100%)
+  startingValue: { 
+    type: Number, 
+    required: true 
+  },
+  // Optional target date
+  deadline: { 
+    type: Date 
+  },
+  status: { 
+    type: String, 
+    enum: ['Active', 'Completed', 'Abandoned'], 
+    default: 'Active' 
+  }
+}, { timestamps: true });
+
+module.exports = mongoose.model('Goal', goalSchema);
+
 
 const messageSchema = new mongoose.Schema({
   senderId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
@@ -219,6 +270,8 @@ app.post("/api/verify-2fa", async (req, res) => {
     user.twoFactorCode = undefined;
     user.twoFactorExpires = undefined;
     req.session.userId = user._id;
+
+    
     await user.save();
 
     res.status(200).json({ message: "Login successful", user: { email: user.email } });
@@ -677,54 +730,89 @@ app.put('/api/goals/set', async (req, res) => {
   }
 });
 
-// GET /api/goals/progress
-app.get('/api/goals/progress', async (req, res) => {
-  if (!req.session.userId) return res.status(401).json({ message: 'Not logged in' });
+
+const Goal = mongoose.model('Goal', goalSchema);
+// POST: Create a new custom goal
+app.post("/api/goals/create", async (req, res) => {
+  if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+  
   try {
-    const userId = new mongoose.Types.ObjectId(req.session.userId);
-    const profile = await Profile.findOne({ userId });
+    const { exerciseName, startingValue, targetValue, goalType } = req.body;
+    
+    // Create a new instance of your GOAL model
+    const newGoal = new Goal({
+      user: req.session.userId,
+      exerciseName,
+      startingValue,
+      targetValue,
+      goalType,
+      status: 'Active' // Default to active
+    });
 
-    if (!profile || !profile.currentGoal) {
-      return res.json({ currentGoal: null, progressData: [] });
-    }
-
-    let progressData = [];
-
-    if (profile.currentGoal === 'Getting Stronger') {
-      progressData = await Workout.aggregate([
-        { $match: { userId } },
-        { $unwind: '$exercises' },
-        {
-          $group: {
-            _id: { date: { $dateToString: { format: '%Y-%m', date: '$datetime' } }, exerciseName: '$exercises.name' },
-            maxWeight: { $max: '$exercises.weight' }
-          }
-        },
-        { $sort: { '_id.date': 1 } }
-      ]);
-    } else if (profile.currentGoal === 'Losing Weight' || profile.currentGoal === 'Increasing Muscle Mass') {
-      progressData = await Workout.aggregate([
-        { $match: { userId } },
-        {
-          $group: {
-            _id: { $dateToString: { format: '%Y-%m', date: '$datetime' } },
-            totalSets: { $sum: { $sum: '$exercises.sets' } },
-            sessionCount: { $sum: 1 }
-          }
-        },
-        { $sort: { _id: 1 } }
-      ]);
-    }
-
-    res.json({ currentGoal: profile.currentGoal, progressData });
+    await newGoal.save();
+    res.status(201).json(newGoal);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error fetching progress data' });
+    console.error("Save error:", err);
+    res.status(500).json({ message: "Failed to save goal" });
   }
 });
 
+// GET: Fetch all active goals AND calculate current progress
+app.get('/api/goals', async (req, res) => {
+  try {
+    const goals = await Goal.find({ user: req.session.userId, status: 'Active' });
 
+    const goalsWithProgress = await Promise.all(goals.map(async (goal) => {
+      let currentValue = goal.startingValue; 
 
+      if (goal.goalType === 'Strength') {
+        // CASE INSENSITIVE SEARCH: 'i' flag ignores capitalization
+        const maxLift = await Workout.aggregate([
+          { $match: { userId: new mongoose.Types.ObjectId(req.session.userId) } },
+          { $unwind: "$exercises" },
+          { $match: { "exercises.name": { $regex: new RegExp(`^${goal.exerciseName}$`, 'i') } } },
+          { $group: { _id: null, currentMax: { $max: "$exercises.weight" } } }
+        ]);
+
+        if (maxLift.length > 0) {
+          currentValue = maxLift[0].currentMax;
+        }
+      }
+
+      // Calculate percentage
+      const totalRequired = goal.targetValue - goal.startingValue;
+      const amountGained = currentValue - goal.startingValue;
+      let percentage = totalRequired > 0 ? (amountGained / totalRequired) * 100 : 0;
+      percentage = Math.max(0, Math.min(100, percentage));
+
+      return { ...goal.toObject(), currentValue, percentageCompleted: Math.round(percentage) };
+    }));
+
+    res.status(200).json(goalsWithProgress);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error fetching goals' });
+  }
+});
+
+app.delete("/api/goals/:id", async (req, res) => {
+  if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+  
+  try {
+    const deletedGoal = await Goal.findOneAndDelete({
+      _id: req.params.id,
+      user: req.session.userId // Security check: Ensure user owns this goal
+    });
+
+    if (!deletedGoal) {
+      return res.status(404).json({ message: "Goal not found" });
+    }
+
+    res.status(200).json({ message: "Goal deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Error deleting goal" });
+  }
+});
 
 server.listen(5000, () => {
   console.log("Server running on port 5000");

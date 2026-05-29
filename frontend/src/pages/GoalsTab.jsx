@@ -1,159 +1,285 @@
 import React, { useState, useEffect } from 'react';
+import '../App.css'; 
 
-const GoalsTab = () => {
-  const [currentGoal, setCurrentGoal] = useState(null);
-  const [progressData, setProgressData] = useState([]);
+export default function GoalsTab() {
+  const [goals, setGoals] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  const goalOptions = ['Getting Stronger', 'Increasing Muscle Mass', 'Losing Weight'];
+  
+  // Form State
+  const [showForm, setShowForm] = useState(false);
+  const [goalType, setGoalType] = useState('Strength');
+  const [exerciseName, setExerciseName] = useState('');
+  const [startingValue, setStartingValue] = useState('');
+  const [targetValue, setTargetValue] = useState('');
 
   useEffect(() => {
-    fetchGoalProgress();
+    fetchGoals();
   }, []);
 
-  const fetchGoalProgress = async () => {
+  const fetchGoals = async () => {
     try {
-      const response = await fetch("http://localhost:5000/api/goals/progress", {
+      // Adjust this URL to match your Express routes
+      const response = await fetch("http://localhost:5000/api/goals", {
         method: "GET",
-        credentials: "include", // Matches your App.jsx auth setup
+        credentials: "include",
       });
 
       if (response.ok) {
         const data = await response.json();
-        setCurrentGoal(data.currentGoal);
-        setProgressData(data.progressData);
+        setGoals(data);
       } else {
-        console.error('Failed to fetch goal data');
+        console.error('Failed to fetch goals');
       }
     } catch (err) {
-      console.error('Error fetching goal data', err);
+      console.error('Error fetching goals', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSelectGoal = async (goal) => {
+  const handleCreateGoal = async (e) => {
+    e.preventDefault();
     try {
-      const response = await fetch("http://localhost:5000/api/goals/set", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
+      const response = await fetch("http://localhost:5000/api/goals/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ goal }),
+        body: JSON.stringify({
+          goalType,
+          exerciseName: goalType === 'Strength' ? exerciseName : undefined,
+          startingValue: Number(startingValue),
+          targetValue: Number(targetValue)
+        }),
       });
 
       if (response.ok) {
-        const data = await response.json();
-        setCurrentGoal(data.currentGoal);
-        fetchGoalProgress(); // Refresh data for the newly selected goal
-      } else {
-        console.error('Failed to update goal');
+        // Reset form and refresh dashboard
+        setShowForm(false);
+        setExerciseName('');
+        setStartingValue('');
+        setTargetValue('');
+        fetchGoals(); 
       }
     } catch (err) {
-      console.error('Error setting goal', err);
+      console.error('Error creating goal', err);
     }
   };
 
+const deleteGoal = async (id) => {
+  try {
+    const response = await fetch(`http://localhost:5000/api/goals/${id}`, {
+      method: 'DELETE',
+      credentials: 'include' // Important for your session
+    });
+
+    if (response.ok) {
+      // Refresh your list so the goal disappears immediately
+      fetchGoals(); // Call your existing function that fetches the list
+    }
+  } catch (err) {
+    console.error("Delete failed", err);
+  }
+};
+
+
   if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem', color: '#38422B' }}>
-        Loading your goals...
-      </div>
-    );
+    return <div style={{ padding: '2rem', color: '#38422B', fontWeight: 'bold' }}>Loading Goals...</div>;
   }
 
   return (
-    <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto', color: '#38422B' }}>
-      <h2 style={{ textAlign: 'center', borderBottom: '2px solid #CCD5C0', paddingBottom: '10px' }}>
-        Fitness Goals
-      </h2>
+    <div className="login-container" style={{ maxWidth: '800px', margin: '0 auto' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+        <h1 style={{ color: '#38422B', margin: 0 }}>My Goals</h1>
+        <button 
+          onClick={() => setShowForm(!showForm)}
+          style={primaryButtonStyle}
+        >
+          {showForm ? 'Cancel' : '+ New Goal'}
+        </button>
+      </div>
 
-      {/* VIEW 1: Selection Mode (If no goal is active) */}
-      {!currentGoal ? (
-        <div style={{ textAlign: 'center', marginTop: '20px' }}>
-          <p>What are you focusing on right now? Select a core goal to track your progress:</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '20px' }}>
-            {goalOptions.map((goal) => (
-              <button 
-                key={goal} 
-                onClick={() => handleSelectGoal(goal)}
-                style={{
-                  padding: '15px',
-                  background: '#CCD5C0',
-                  border: '2px solid #9FB873',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontWeight: 'bold',
-                  color: '#38422B'
-                }}
-              >
-                {goal}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : (
-        /* VIEW 2: Progress Dashboard Mode */
-        <div style={{ marginTop: '20px' }}>
-          <div style={{ 
-            background: '#CCD5C0', 
-            padding: '20px', 
-            borderRadius: '8px', 
-            display: 'flex', 
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '20px'
-          }}>
-            <h3 style={{ margin: 0 }}>
-              Current Goal: <span style={{ color: '#5a6b45' }}>{currentGoal}</span>
-            </h3>
-            <button 
-              onClick={() => handleSelectGoal(null)}
-              style={{
-                padding: '8px 12px',
-                background: '#38422B',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
+      {/* --- GOAL CREATION FORM --- */}
+      {showForm && (
+        <form onSubmit={handleCreateGoal} style={formContainerStyle}>
+          <h3 style={{ marginTop: 0, color: '#38422B' }}>Create a New Target</h3>
+          
+          <div style={{ marginBottom: '15px' }}>
+            <label style={labelStyle}>Goal Category</label>
+            <select 
+              value={goalType} 
+              onChange={(e) => setGoalType(e.target.value)}
+              style={inputStyle}
             >
-              Change Goal
-            </button>
+              <option value="Strength">Strength (1RM / Max Weight)</option>
+              <option value="Bodyweight">Bodyweight</option>
+              <option value="Consistency">Consistency (Workouts/Week)</option>
+            </select>
           </div>
 
-          <div style={{ padding: '20px', border: '1px solid #CCD5C0', borderRadius: '8px' }}>
-            {currentGoal === 'Getting Stronger' && (
-              <div>
-                <h4>Strength Progression</h4>
-                {progressData.length > 0 ? (
-                  <p>Data found: Render your line charts here!</p>
-                ) : (
-                  <p style={{ fontStyle: 'italic', color: '#666' }}>
-                    Log your exercises in the tracker to watch your strength curve climb!
-                  </p>
-                )}
-              </div>
-            )}
+          {/* Only show Exercise Name if it's a Strength goal */}
+          {goalType === 'Strength' && (
+            <div style={{ marginBottom: '15px' }}>
+              <label style={labelStyle}>Exercise Name</label>
+              <input 
+                type="text" 
+                placeholder="e.g., Bench Press" 
+                value={exerciseName}
+                onChange={(e) => setExerciseName(e.target.value)}
+                style={inputStyle}
+                required
+              />
+            </div>
+          )}
 
-            {(currentGoal === 'Losing Weight' || currentGoal === 'Increasing Muscle Mass') && (
-              <div>
-                <h4>Body Weight Trajectory</h4>
-                {progressData.length > 0 ? (
-                  <p>Data found: Render your weight tracking line graphs here!</p>
-                ) : (
-                  <p style={{ fontStyle: 'italic', color: '#666' }}>
-                    No weight logs found yet. Start tracking your body metrics to see your line graph populate.
-                  </p>
-                )}
-              </div>
-            )}
+          <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Starting Value</label>
+              <input 
+                type="number" 
+                placeholder="e.g., 135" 
+                value={startingValue}
+                onChange={(e) => setStartingValue(e.target.value)}
+                style={inputStyle}
+                required
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Target Value</label>
+              <input 
+                type="number" 
+                placeholder="e.g., 190" 
+                value={targetValue}
+                onChange={(e) => setTargetValue(e.target.value)}
+                style={inputStyle}
+                required
+              />
+            </div>
           </div>
-        </div>
+
+          <button type="submit" style={{ ...primaryButtonStyle, width: '100%' }}>
+            Save Goal
+          </button>
+        </form>
       )}
+
+      {/* --- GOALS DASHBOARD --- */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        {goals.length === 0 && !showForm ? (
+          <div style={{ textAlign: 'center', padding: '40px', background: '#F5F1E8', borderRadius: '12px', border: '1px dashed #38422B' }}>
+            <p style={{ color: '#38422B', fontWeight: 'bold' }}>No active goals right now.</p>
+            <p style={{ color: '#666' }}>Set a target to start tracking your progress!</p>
+          </div>
+        ) : (
+          goals.map(goal => (
+            <div key={goal._id} style={goalCardStyle}>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <h3 style={{ margin: 0, color: '#38422B' }}>
+                  {goal.goalType === 'Strength' ? goal.exerciseName : goal.goalType}:&nbsp;
+                </h3>
+                <span style={{ fontWeight: 'bold', color: '#9FB873' }}>
+                  {goal.percentageCompleted}%
+                </span>
+              </div>
+              
+              {/* Progress Bar Track */}
+              <div style={progressBarTrackStyle}>
+                {/* Progress Bar Fill */}
+                <div style={{
+                  ...progressBarFillStyle,
+                  width: `${goal.percentageCompleted}%`
+                }}></div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', justifyContent: 'space-between', marginTop: '8px', fontSize: '14px', color: '#666' }}>
+                <span>Started: {goal.startingValue}</span>
+                <span style={{ fontWeight: 'bold', color: '#38422B' }}>
+                  Current: {goal.currentValue} / {goal.targetValue}
+                </span>
+              </div>
+
+              <button 
+    onClick={() => deleteGoal(goal._id)}
+    style={{ 
+      marginTop: '10px',      
+      padding: '8px',
+      background: '#ff4d4d', 
+      color: 'white', 
+      border: 'none', 
+      borderRadius: '4px',
+      cursor: 'pointer' 
+    }}
+  >
+    Delete Goal
+  </button>
+
+            </div>
+            
+          ))
+        )}
+      </div>
     </div>
   );
+}
+
+// --- STYLES ---
+
+const primaryButtonStyle = {
+  background: '#38422B',
+  color: '#F5F1E8',
+  border: 'none',
+  padding: '10px 20px',
+  borderRadius: '8px',
+  fontWeight: 'bold',
+  cursor: 'pointer',
 };
 
-export default GoalsTab;
+const formContainerStyle = {
+  background: '#CCD5C0',
+  padding: '20px',
+  borderRadius: '12px',
+  border: '1px solid #38422B',
+  marginBottom: '20px',
+};
+
+const labelStyle = {
+  display: 'block',
+  fontWeight: 'bold',
+  color: '#38422B',
+  marginBottom: '5px',
+  fontSize: '14px'
+};
+
+const inputStyle = {
+  width: '100%',
+  padding: '10px',
+  borderRadius: '8px',
+  border: '1px solid #38422B',
+  background: '#F5F1E8',
+  boxSizing: 'border-box',
+  outline: 'none'
+};
+
+const goalCardStyle = {
+  background: '#F5F1E8',
+  padding: '20px',
+  borderRadius: '12px',
+  border: '1px solid #38422B',
+  boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+};
+
+const progressBarTrackStyle = {
+  width: '100%',
+  height: '16px',
+  background: '#CCD5C0',
+  borderRadius: '8px',
+  overflow: 'hidden',
+  border: '1px solid rgba(56, 66, 43, 0.2)'
+};
+
+const progressBarFillStyle = {
+  height: '100%',
+  background: '#9FB873', // Light green fill
+  borderRadius: '8px',
+  transition: 'width 0.5s ease-in-out' // Smooth animation on load
+};
