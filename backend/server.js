@@ -96,6 +96,17 @@ const pendingUserSchema = new mongoose.Schema({
 });
 const PendingUser = mongoose.model("PendingUser", pendingUserSchema);
 
+const dietPlanSchema = new mongoose.Schema({
+  userId: String,
+  generatedAt: {
+    type: Date,
+    default: Date.now,
+  },
+  plan: Object,
+});
+
+const DietPlan = mongoose.model("DietPlan", dietPlanSchema);
+
 // 2. Signup Route
 app.post("/api/signup", async (req, res) => {
   try {
@@ -344,7 +355,7 @@ function mapDietaryRestrictions(restrictions = []) {
   };
 }
 
-app.get("/api/diet-suggestions", async (req, res) => {
+app.post("/api/generate-diet-plan", async (req, res) => {
   if (!req.session.userId) {
     return res.status(401).json({ message: "Not logged in" });
   }
@@ -362,7 +373,7 @@ app.get("/api/diet-suggestions", async (req, res) => {
     ) {
       return res.status(400).json({
         message:
-          "Complete your profile, fitness goal, and activity level before viewing diet suggestions.",
+          "Complete your profile, fitness goal, and activity level before generating a diet plan.",
       });
     }
 
@@ -384,17 +395,45 @@ app.get("/api/diet-suggestions", async (req, res) => {
       }
     );
 
-    res.json({
-      targetCalories,
-      diet: diet || "none",
-      intolerances: intolerances || "none",
-      meals: response.data.meals,
-      nutrients: response.data.nutrients,
-    });
+    const savedPlan = await DietPlan.findOneAndUpdate(
+      { userId: req.session.userId },
+      {
+        generatedAt: new Date(),
+        plan: {
+          targetCalories,
+          diet: diet || "none",
+          intolerances: intolerances || "none",
+          meals: response.data.meals,
+          nutrients: response.data.nutrients,
+        },
+      },
+      {
+        upsert: true,
+        returnDocument: "after",
+      }
+    );
+
+    res.json(savedPlan);
   } catch (err) {
     console.error("Diet API error:", err.response?.data || err.message);
-    res.status(500).json({ message: "Could not generate diet suggestions." });
+    res.status(500).json({ message: "Could not generate diet plan." });
   }
+});
+
+app.get("/api/diet-suggestions", async (req, res) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ message: "Not logged in" });
+  }
+
+  const dietPlan = await DietPlan.findOne({ userId: req.session.userId });
+
+  if (!dietPlan) {
+    return res.status(404).json({
+      message: "No diet plan found. Click Generate Diet Plan to create one.",
+    });
+  }
+
+  res.json(dietPlan);
 });
 
 app.listen(5000, () => {
