@@ -94,12 +94,13 @@ function App() {
     <>
       {loggedIn ? (
         <div>
-<<<<<<< HEAD
+
           <nav style={{ display: 'flex', gap: 12, padding: 12, justifyContent: 'center', background: '#CCD5C0', borderBottom: '2px solid #38422B' }}>
             <button onClick={() => navigateTo('workouts')} className="counter" style={page === 'workouts' ? activeNavBtn : {}}>Workouts</button>
             <button onClick={() => navigateTo('history')} className="counter" style={page === 'history' ? activeNavBtn : {}}>History</button>
             <button onClick={() => navigateTo('profile')} className="counter" style={page === 'profile' ? activeNavBtn : {}}>Profile</button>
             <button onClick={() => navigateTo('connect')} className="counter" style={page === 'connect' ? activeNavBtn : {}}>Connect</button>
+            <button onClick={() => setPage('diet')} className="counter"> Diet Suggestions</button>
             <button onClick={() => navigateTo('messages')} className="counter" style={page === 'messages' ? activeNavBtn : {}}>Messages</button>
             <button onClick={handleLogout} className="counter">Logout</button>
           </nav>
@@ -108,36 +109,13 @@ function App() {
           {page === 'history' && <History />}
           {page === 'profile' && <Profile />}
           {page === 'connect' && <Connect onOpenMessage={handleOpenMessage} />}
+          {page === 'diet' && <DietSuggestions />}
           {page === 'messages' && (
             <Messages
               openWithUserId={openMessageUserId}
               onClearOpenWith={() => setOpenMessageUserId(null)}
             />
           )}
-=======
-          <nav style={{ display: 'flex', gap: 12, padding: 12, justifyContent: 'center' }}>
-            <button onClick={() => setPage('workouts')} className="counter">Workouts</button>
-            <button onClick={() => setPage('history')} className="counter">History</button>
-            <button onClick={() => setPage('profile')} className="counter">Profile</button>
-            <button onClick={() => { setLoggedIn(false); setPage('login'); }} className="counter">Logout</button>
-            <button onClick={() => setPage('diet')} className="counter"> Diet Suggestions</button>
-          </nav>
-
-          {page === 'workouts' ? (
-            <Workouts />
-          ) : page === 'history' ? (
-            <History />
-          ): page === 'profile' ? (
-            <Profile />
-          ) : page === 'diet' ? (
-            <DietSuggestions />
-          ) : (
-            <div style={{ padding: 24 }}>
-              <h1>Welcome to Fitness Tracker</h1>
-              <p>You are logged in.</p>
-            </div>
-    )}
->>>>>>> diet-plan
         </div>
       ) : (
         page === 'login' ? (

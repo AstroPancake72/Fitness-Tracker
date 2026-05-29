@@ -102,14 +102,11 @@ const profileSchema = new mongoose.Schema({
   fitnessGoal: { type: String, default: "" },
   activityLevel: { type: String, default: "" },
   bio: { type: String, default: "" },
-<<<<<<< HEAD
   connections: [{
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'Profile' },
     status: { type: String, enum: ['pending', 'connected'] }
-  }]
-=======
+  }],
   profileImage: { type: String, default: "" },
->>>>>>> diet-plan
 }, { timestamps: true });
 
 const Profile = mongoose.model("Profile", profileSchema);
