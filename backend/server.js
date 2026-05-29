@@ -302,7 +302,7 @@ app.put("/api/profile", async (req, res) => {
         activityLevel,
         bio,
       },
-      { new: true, upsert: true, runValidators: true }
+      { returnDocument: "after", upsert: true, runValidators: true }
     );
 
     res.json(updatedProfile);

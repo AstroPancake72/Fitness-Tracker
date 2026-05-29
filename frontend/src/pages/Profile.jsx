@@ -4,47 +4,51 @@ import "../App.css";
 export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
   const [message, setMessage] = useState("");
+
   const [profile, setProfile] = useState({
     fullName: "",
     age: "",
     height: "",
     weight: "",
     dietaryRestrictions: "",
+    fitnessGoal: "",
+    activityLevel: "",
     bio: "",
-    goalsVisibleToFriends: false,
   });
 
   useEffect(() => {
     loadProfile();
   }, []);
 
-    async function loadProfile() {
-      const res = await fetch("http://localhost:5000/api/profile", {
+  async function loadProfile() {
+    const res = await fetch("http://localhost:5000/api/profile", {
       credentials: "include",
-    })
+    });
 
     const data = await res.json();
 
-        if (res.ok) {
-          setProfile({
-            fullName: data.fullName || "",
-            age: data.age || "",
-            height: data.height || "",
-            weight: data.weight || "",
-            dietaryRestrictions: data.dietaryRestrictions?.join(", ") || "",
-            bio: data.bio || "",
-          });
-        } else {
-          setMessage(data.message || "Could not load profile.");
-        }
-      }
-
-    function updateField(field, value) {
-      setProfile({ ...profile, [field]: value });
+    if (res.ok) {
+      setProfile({
+        fullName: data.fullName || "",
+        age: data.age || "",
+        height: data.height || "",
+        weight: data.weight || "",
+        dietaryRestrictions: data.dietaryRestrictions?.[0] || "",
+        fitnessGoal: data.fitnessGoal || "",
+        activityLevel: data.activityLevel || "",
+        bio: data.bio || "",
+      });
+    } else {
+      setMessage(data.message || "Could not load profile.");
     }
+  }
 
-    async function saveProfile(e) {
-      e.preventDefault();
+  function updateField(field, value) {
+    setProfile({ ...profile, [field]: value });
+  }
+
+  async function saveProfile(e) {
+    e.preventDefault();
 
     const payload = {
       fullName: profile.fullName,
@@ -52,44 +56,44 @@ export default function Profile() {
       height: profile.height ? Number(profile.height) : null,
       weight: profile.weight ? Number(profile.weight) : null,
       dietaryRestrictions: profile.dietaryRestrictions
-        .split(",")
-        .map(item => item.trim())
-        .filter(item => item !== ""),
+        ? [profile.dietaryRestrictions]
+        : [],
+      fitnessGoal: profile.fitnessGoal,
+      activityLevel: profile.activityLevel,
       bio: profile.bio,
     };
 
-      const res = await fetch("http://localhost:5000/api/profile", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(payload),
-      });
+    const res = await fetch("http://localhost:5000/api/profile", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
 
-      const data = await res.json();
+    const data = await res.json();
 
     if (res.ok) {
-        setMessage("Profile saved!");
-        setIsEditing(false);
-        loadProfile();
+      setMessage("Profile saved!");
+      setIsEditing(false);
+      loadProfile();
     } else {
-        setMessage(data.message || "Profile save failed.");
-    }    
+      setMessage(data.message || "Profile save failed.");
+    }
   }
 
-if (!isEditing) {
-  return (
-    <div className="login-container" style={{ maxWidth: "700px" }}>
-      <h1>User Profile</h1>
+  if (!isEditing) {
+    return (
+      <div style={profileCardStyle}>
+        <h1>User Profile</h1>
 
-
-        <div style={profileCardStyle}>
-          <p><strong>Full Name:</strong> {profile.fullName || "Not provided"}</p>
-          <p><strong>Age:</strong> {profile.age || "Not provided"}</p>
-          <p><strong>Height:</strong> {profile.height || "Not provided"}</p>
-          <p><strong>Weight:</strong> {profile.weight || "Not provided"}</p>
-          <p><strong>Dietary Restrictions:</strong> {profile.dietaryRestrictions || "None"}</p>
-          <p><strong>Bio:</strong> {profile.bio || "Not provided"}</p>
-        </div>
+        <p>Full Name: {profile.fullName || "Not provided"}</p>
+        <p>Age: {profile.age || "Not provided"}</p>
+        <p>Height: {profile.height || "Not provided"}</p>
+        <p>Weight: {profile.weight || "Not provided"}</p>
+        <p>Dietary Restrictions: {profile.dietaryRestrictions || "None"}</p>
+        <p>Fitness Goal: {profile.fitnessGoal || "Not provided"}</p>
+        <p>Activity Level: {profile.activityLevel || "Not provided"}</p>
+        <p>Bio: {profile.bio || "Not provided"}</p>
 
         <button className="counter" onClick={() => setIsEditing(true)}>
           Edit Profile
@@ -101,53 +105,84 @@ if (!isEditing) {
   }
 
   return (
-    <div className="login-container" style={{ maxWidth: "700px" }}>
+    <div style={profileCardStyle}>
       <h1>Edit Profile</h1>
 
       <form onSubmit={saveProfile}>
+        <label>Full Name</label>
         <input
-          type="text"
-          placeholder="Full name"
           value={profile.fullName}
           onChange={(e) => updateField("fullName", e.target.value)}
         />
 
+        <label>Age</label>
         <input
           type="number"
-          placeholder="Age"
           value={profile.age}
           onChange={(e) => updateField("age", e.target.value)}
         />
 
+        <label>Height</label>
         <input
           type="number"
-          placeholder="Height"
           value={profile.height}
           onChange={(e) => updateField("height", e.target.value)}
         />
 
+        <label>Weight</label>
         <input
           type="number"
-          placeholder="Weight"
           value={profile.weight}
           onChange={(e) => updateField("weight", e.target.value)}
         />
 
-        <input
-          type="text"
-          placeholder="Dietary restrictions, comma separated"
+        <label>Dietary Restrictions</label>
+        <select
           value={profile.dietaryRestrictions}
           onChange={(e) => updateField("dietaryRestrictions", e.target.value)}
-        />
+        >
+          <option value="">None</option>
+          <option value="vegetarian">Vegetarian</option>
+          <option value="vegan">Vegan</option>
+          <option value="gluten-free">Gluten-free</option>
+          <option value="dairy-free">Dairy-free</option>
+          <option value="peanut-free">Peanut-free</option>
+        </select>
 
+        <label>Fitness Goal</label>
+        <select
+          value={profile.fitnessGoal}
+          onChange={(e) => updateField("fitnessGoal", e.target.value)}
+        >
+          <option value="">Select a goal</option>
+          <option value="lose weight">Lose weight</option>
+          <option value="maintain weight">Maintain weight</option>
+          <option value="gain muscle">Gain muscle</option>
+        </select>
+
+        <label>Activity Level</label>
+        <select
+          value={profile.activityLevel}
+          onChange={(e) => updateField("activityLevel", e.target.value)}
+        >
+          <option value="">Select activity level</option>
+          <option value="low">Low</option>
+          <option value="moderate">Moderate</option>
+          <option value="high">High</option>
+        </select>
+
+        <label>Bio</label>
         <textarea
-          placeholder="Short bio"
           value={profile.bio}
           onChange={(e) => updateField("bio", e.target.value)}
         />
 
         <div style={{ display: "flex", gap: "10px" }}>
-          <button type="button" className="counter" onClick={() => setIsEditing(false)}>
+          <button
+            type="button"
+            className="counter"
+            onClick={() => setIsEditing(false)}
+          >
             Cancel
           </button>
 

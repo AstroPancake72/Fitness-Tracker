@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
+import "../App.css";
 
 export default function DietSuggestions() {
   const [suggestions, setSuggestions] = useState(null);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    async function loadSuggestions() {
+    async function loadDietSuggestions() {
       const res = await fetch("http://localhost:5000/api/diet-suggestions", {
         credentials: "include",
       });
@@ -20,37 +21,42 @@ export default function DietSuggestions() {
       setSuggestions(data);
     }
 
-    loadSuggestions();
+    loadDietSuggestions();
   }, []);
 
-  if (message) return <p style={{ padding: 24 }}>{message}</p>;
-  if (!suggestions) return <p style={{ padding: 24 }}>Loading...</p>;
+  if (message) return <p>{message}</p>;
+  if (!suggestions) return <p>Loading diet suggestions...</p>;
 
   return (
-    <div style={{ padding: 24 }}>
+    <div className="card">
       <h1>Diet Plan Suggestions</h1>
 
-      <h2>Daily Target</h2>
-      <p>{suggestions.calories} calories</p>
+      <p>
+        Target calories: <strong>{suggestions.targetCalories}</strong>
+      </p>
 
-      <h2>Macros</h2>
-      <p>Protein: {suggestions.macros.protein}g</p>
-      <p>Carbs: {suggestions.macros.carbs}g</p>
-      <p>Fat: {suggestions.macros.fat}g</p>
+      <h2>Nutrition</h2>
+      <p>Calories: {suggestions.nutrients.calories}</p>
+      <p>Protein: {suggestions.nutrients.protein}g</p>
+      <p>Carbs: {suggestions.nutrients.carbohydrates}g</p>
+      <p>Fat: {suggestions.nutrients.fat}g</p>
 
-      <h2>Suggested Meals</h2>
+      <h2>Meals</h2>
       <ul>
         {suggestions.meals.map((meal) => (
-          <li key={meal}>{meal}</li>
+          <li key={meal.id}>
+            <a href={meal.sourceUrl} target="_blank" rel="noreferrer">
+              {meal.title}
+            </a>
+            <br />
+            Ready in {meal.readyInMinutes} min | Servings: {meal.servings}
+          </li>
         ))}
       </ul>
 
-      <h2>Notes</h2>
-      <ul>
-        {suggestions.notes.map((note) => (
-          <li key={note}>{note}</li>
-        ))}
-      </ul>
+      <p>
+        <em>These suggestions are informational and are not medical advice.</em>
+      </p>
     </div>
   );
 }

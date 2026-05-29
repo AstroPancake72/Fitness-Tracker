@@ -42,7 +42,7 @@ function App() {
             <button onClick={() => setPage('history')} className="counter">History</button>
             <button onClick={() => setPage('profile')} className="counter">Profile</button>
             <button onClick={() => { setLoggedIn(false); setPage('login'); }} className="counter">Logout</button>
-            <button onClick={() => setPage('diet')} className="counter"> Diet Suggestions </button>
+            <button onClick={() => setPage('diet')} className="counter"> Diet Suggestions</button>
           </nav>
 
           {page === 'workouts' ? (
