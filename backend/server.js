@@ -506,9 +506,9 @@ app.get("/api/diet-suggestions", async (req, res) => {
   res.json(dietPlan);
 });
 
-app.listen(5000, () => {
+/*app.listen(5000, () => {
   console.log("Server running on port 5000");
-});
+});*/
 
 // 4. Protected Route Example
 app.get("/api/me", async (req, res) => {
