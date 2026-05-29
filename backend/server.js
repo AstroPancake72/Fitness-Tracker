@@ -82,6 +82,7 @@ const workoutSchema = new mongoose.Schema({
 const profileSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, unique: true },
+    currentGoal: { type: String, default: null },
     fullName: { type: String, default: "" },
     age: { type: Number, default: null },
     height: { type: Number, default: null },
@@ -659,6 +660,70 @@ io.on("connection", (socket) => {
     console.log(`User disconnected: ${userId}`);
   });
 });
+
+// PUT /api/goals/set
+app.put('/api/goals/set', async (req, res) => {
+  if (!req.session.userId) return res.status(401).json({ message: 'Not logged in' });
+  const { goal } = req.body;
+  try {
+    const profile = await Profile.findOneAndUpdate(
+      { userId: req.session.userId },
+      { currentGoal: goal },
+      { new: true, upsert: true }
+    );
+    res.json({ currentGoal: profile.currentGoal });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error updating goal' });
+  }
+});
+
+// GET /api/goals/progress
+app.get('/api/goals/progress', async (req, res) => {
+  if (!req.session.userId) return res.status(401).json({ message: 'Not logged in' });
+  try {
+    const userId = new mongoose.Types.ObjectId(req.session.userId);
+    const profile = await Profile.findOne({ userId });
+
+    if (!profile || !profile.currentGoal) {
+      return res.json({ currentGoal: null, progressData: [] });
+    }
+
+    let progressData = [];
+
+    if (profile.currentGoal === 'Getting Stronger') {
+      progressData = await Workout.aggregate([
+        { $match: { userId } },
+        { $unwind: '$exercises' },
+        {
+          $group: {
+            _id: { date: { $dateToString: { format: '%Y-%m', date: '$datetime' } }, exerciseName: '$exercises.name' },
+            maxWeight: { $max: '$exercises.weight' }
+          }
+        },
+        { $sort: { '_id.date': 1 } }
+      ]);
+    } else if (profile.currentGoal === 'Losing Weight' || profile.currentGoal === 'Increasing Muscle Mass') {
+      progressData = await Workout.aggregate([
+        { $match: { userId } },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m', date: '$datetime' } },
+            totalSets: { $sum: { $sum: '$exercises.sets' } },
+            sessionCount: { $sum: 1 }
+          }
+        },
+        { $sort: { _id: 1 } }
+      ]);
+    }
+
+    res.json({ currentGoal: profile.currentGoal, progressData });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error fetching progress data' });
+  }
+});
+
+
 
 
 server.listen(5000, () => {

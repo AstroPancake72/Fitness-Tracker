@@ -8,6 +8,7 @@ import Profile from "./pages/Profile";
 import History from './pages/History';
 import Connect from './pages/Connect';
 import Messages, { disconnectSocket } from './pages/Messages';
+import GoalsTab from './pages/GoalsTab';
  
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -94,6 +95,7 @@ function App() {
           <nav style={{ display: 'flex', gap: 12, padding: 12, justifyContent: 'center', background: '#CCD5C0', borderBottom: '2px solid #38422B' }}>
             <button onClick={() => navigateTo('workouts')} className="counter" style={page === 'workouts' ? activeNavBtn : {}}>Workouts</button>
             <button onClick={() => navigateTo('history')} className="counter" style={page === 'history' ? activeNavBtn : {}}>History</button>
+            <button onClick={() => navigateTo('goals')} className="counter" style={page === 'goals' ? activeNavBtn : {}}>Goals</button>
             <button onClick={() => navigateTo('profile')} className="counter" style={page === 'profile' ? activeNavBtn : {}}>Profile</button>
             <button onClick={() => navigateTo('connect')} className="counter" style={page === 'connect' ? activeNavBtn : {}}>Connect</button>
             <button onClick={() => navigateTo('messages')} className="counter" style={page === 'messages' ? activeNavBtn : {}}>Messages</button>
@@ -102,6 +104,7 @@ function App() {
  
           {page === 'workouts' && <Workouts />}
           {page === 'history' && <History />}
+          {page === 'goals' && <GoalsTab />}
           {page === 'profile' && <Profile />}
           {page === 'connect' && <Connect onOpenMessage={handleOpenMessage} />}
           {page === 'messages' && (
