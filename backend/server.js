@@ -1,6 +1,7 @@
 const express = require("express");
 const session = require("express-session");
 const cors = require("cors");
+const axios = require("axios");
 const mongoose = require("mongoose");
 require("dotenv").config();
 const bcrypt = require("bcrypt");
@@ -79,6 +80,8 @@ const profileSchema = new mongoose.Schema({
   height: { type: Number, default: null },
   weight: { type: Number, default: null },
   dietaryRestrictions: { type: [String], default: [] },
+  fitnessGoal: { type: String, default: "" },
+  activityLevel: { type: String, default: "" },
   bio: { type: String, default: "" },
 }, { timestamps: true });
 
@@ -276,14 +279,16 @@ app.put("/api/profile", async (req, res) => {
   }
 
   try {
-    const {
-      fullName,
-      age,
-      height,
-      weight,
-      dietaryRestrictions,
-      bio,
-    } = req.body;
+  const {
+    fullName,
+    age,
+    height,
+    weight,
+    dietaryRestrictions,
+    fitnessGoal,
+    activityLevel,
+    bio,
+  } = req.body;
 
     const updatedProfile = await Profile.findOneAndUpdate(
       { userId: req.session.userId },
@@ -293,6 +298,8 @@ app.put("/api/profile", async (req, res) => {
         height,
         weight,
         dietaryRestrictions,
+        fitnessGoal,
+        activityLevel,
         bio,
       },
       { new: true, upsert: true, runValidators: true }
@@ -305,54 +312,35 @@ app.put("/api/profile", async (req, res) => {
   }
 });
 
-function generateDietSuggestions(profile) {
+function calculateTargetCalories(profile) {
   const weight = Number(profile.weight);
-  const restrictions = profile.dietaryRestrictions || [];
+  let calories = weight * 14;
 
-  const calories = Math.round(weight * 14);
-  const protein = Math.round(weight * 0.8);
-  const fat = Math.round((calories * 0.25) / 9);
-  const carbs = Math.round((calories - protein * 4 - fat * 9) / 4);
+  if (profile.fitnessGoal === "lose weight") calories -= 400;
+  if (profile.fitnessGoal === "gain muscle") calories += 300;
 
-  let meals = [
-    "Eggs with whole grain toast and fruit",
-    "Chicken rice bowl with vegetables",
-    "Greek yogurt with berries",
-    "Salmon with sweet potato and greens"
-  ];
+  if (profile.activityLevel === "low") calories -= 100;
+  if (profile.activityLevel === "high") calories += 200;
 
-  if (restrictions.includes("vegan")) {
-    meals = [
-      "Oatmeal with almond butter and fruit",
-      "Lentil rice bowl with vegetables",
-      "Tofu stir fry with quinoa",
-      "Chickpea salad wrap"
-    ];
-  } else if (restrictions.includes("vegetarian")) {
-    meals = [
-      "Greek yogurt with berries",
-      "Paneer or tofu bowl with vegetables",
-      "Egg and avocado toast",
-      "Chickpea salad wrap"
-    ];
-  } else if (restrictions.includes("gluten-free")) {
-    meals = [
-      "Eggs with potatoes and fruit",
-      "Chicken rice bowl",
-      "Salmon with quinoa and vegetables",
-      "Greek yogurt with berries"
-    ];
-  }
+  return Math.round(calories);
+}
+
+function mapDietaryRestrictions(restrictions = []) {
+  const lower = restrictions.map((r) => r.toLowerCase().trim());
+
+  let diet = "";
+  if (lower.includes("vegan")) diet = "vegan";
+  else if (lower.includes("vegetarian")) diet = "vegetarian";
+
+  const intolerances = [];
+
+  if (lower.includes("gluten-free")) intolerances.push("gluten");
+  if (lower.includes("dairy-free")) intolerances.push("dairy");
+  if (lower.includes("peanut-free")) intolerances.push("peanut");
 
   return {
-    calories,
-    macros: { protein, carbs, fat },
-    meals,
-    notes: [
-      "Include protein in every meal.",
-      "Drink water throughout the day.",
-      "Adjust portions based on workout intensity."
-    ]
+    diet,
+    intolerances: intolerances.join(","),
   };
 }
 
@@ -361,15 +349,52 @@ app.get("/api/diet-suggestions", async (req, res) => {
     return res.status(401).json({ message: "Not logged in" });
   }
 
-  const profile = await Profile.findOne({ userId: req.session.userId });
+  try {
+    const profile = await Profile.findOne({ userId: req.session.userId });
 
-  if (!profile || !profile.age || !profile.height || !profile.weight) {
-    return res.status(400).json({
-      message: "Complete your profile before viewing diet suggestions."
+    if (
+      !profile ||
+      !profile.age ||
+      !profile.height ||
+      !profile.weight ||
+      !profile.fitnessGoal ||
+      !profile.activityLevel
+    ) {
+      return res.status(400).json({
+        message:
+          "Complete your profile, fitness goal, and activity level before viewing diet suggestions.",
+      });
+    }
+
+    const targetCalories = calculateTargetCalories(profile);
+    const { diet, intolerances } = mapDietaryRestrictions(
+      profile.dietaryRestrictions
+    );
+
+    const response = await axios.get(
+      "https://api.spoonacular.com/mealplanner/generate",
+      {
+        params: {
+          apiKey: process.env.SPOONACULAR_API_KEY,
+          timeFrame: "day",
+          targetCalories,
+          diet,
+          intolerances,
+        },
+      }
+    );
+
+    res.json({
+      targetCalories,
+      diet: diet || "none",
+      intolerances: intolerances || "none",
+      meals: response.data.meals,
+      nutrients: response.data.nutrients,
     });
+  } catch (err) {
+    console.error("Diet API error:", err.response?.data || err.message);
+    res.status(500).json({ message: "Could not generate diet suggestions." });
   }
-
-  res.json(generateDietSuggestions(profile));
 });
 
 app.listen(5000, () => {
