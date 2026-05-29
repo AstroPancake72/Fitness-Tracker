@@ -21,7 +21,7 @@ export default function DietSuggestions() {
       setSuggestions(data);
       setMessage("");
     } else {
-      setMessage(data.message || "No diet plan found.");
+      setMessage(data.message || "No diet plan generated yet.");
     }
   }
 
@@ -48,66 +48,102 @@ export default function DietSuggestions() {
 
   if (!suggestions) {
     return (
-      <div className="card">
-        <h1>Diet Plan Suggestions</h1>
+      <main className="page-shell">
+        <section className="diet-card">
+          <h1>Diet Plan Suggestions</h1>
+          <div className="success-box">{message}</div>
 
-        <p>{message}</p>
-
-        <button
-          className="counter"
-          onClick={generateDietPlan}
-          disabled={loading}
-        >
-          {loading ? "Generating..." : "Generate Diet Plan"}
-        </button>
-      </div>
+          <button className="primary-btn" onClick={generateDietPlan} disabled={loading}>
+            {loading ? "Generating..." : "Generate Diet Plan"}
+          </button>
+        </section>
+      </main>
     );
   }
 
   const plan = suggestions.plan;
 
   return (
-    <div className="card">
-      <h1>Diet Plan Suggestions</h1>
+    <main className="page-shell">
+      <section className="diet-card">
+        <h1>Diet Plan Suggestions</h1>
 
-      {message && <p>{message}</p>}
+        {message && <div className="success-box">{message}</div>}
 
-      <p>Generated: {new Date(suggestions.generatedAt).toLocaleString()}</p>
+        <div className="diet-summary">
+          <div>
+            <strong>Generated:</strong>{" "}
+            {new Date(suggestions.generatedAt).toLocaleString()}
+          </div>
+          <div>
+            <strong>Target calories:</strong> {plan.targetCalories}
+          </div>
+        </div>
 
-      <p>
-        Target calories: <strong>{plan.targetCalories}</strong>
-      </p>
+        <h2>Nutrition</h2>
 
-      <h2>Nutrition</h2>
-      <p>Calories: {plan.nutrients.calories}</p>
-      <p>Protein: {plan.nutrients.protein}g</p>
-      <p>Carbs: {plan.nutrients.carbohydrates}g</p>
-      <p>Fat: {plan.nutrients.fat}g</p>
+        <div className="nutrition-grid">
+          <div className="nutrition-box">
+            <span>🔥</span>
+            <p>Calories</p>
+            <strong>{plan.nutrients.calories}</strong>
+            <small>kcal</small>
+          </div>
 
-      <h2>Meals</h2>
-      <ul>
-        {plan.meals.map((meal) => (
-          <li key={meal.id}>
-            <a href={meal.sourceUrl} target="_blank" rel="noreferrer">
-              {meal.title}
-            </a>
-            <br />
-            Ready in {meal.readyInMinutes} min | Servings: {meal.servings}
-          </li>
-        ))}
-      </ul>
+          <div className="nutrition-box">
+            <span>💪</span>
+            <p>Protein</p>
+            <strong>{plan.nutrients.protein}g</strong>
+          </div>
 
-      <button
-        className="counter"
-        onClick={generateDietPlan}
-        disabled={loading}
-      >
-        {loading ? "Generating..." : "Regenerate Plan"}
-      </button>
+          <div className="nutrition-box">
+            <span>🌿</span>
+            <p>Carbs</p>
+            <strong>{plan.nutrients.carbohydrates}g</strong>
+          </div>
 
-      <p>
-        <em>These suggestions are informational and are not medical advice.</em>
-      </p>
-    </div>
+          <div className="nutrition-box">
+            <span>💧</span>
+            <p>Fat</p>
+            <strong>{plan.nutrients.fat}g</strong>
+          </div>
+        </div>
+
+        <h2>Meals</h2>
+
+        <div className="meal-list">
+          {plan.meals.map((meal) => {
+            const imageUrl = `https://spoonacular.com/recipeImages/${meal.id}-312x231.${meal.imageType}`;
+
+            return (
+              <a
+                className="meal-card"
+                href={meal.sourceUrl}
+                target="_blank"
+                rel="noreferrer"
+                key={meal.id}
+              >
+                <img src={imageUrl} alt={meal.title} className="meal-image" />
+
+                <div className="meal-info">
+                  <h3>{meal.title}</h3>
+                  <p>Ready in {meal.readyInMinutes} min</p>
+                </div>
+
+                <span>Servings: {meal.servings}</span>
+              </a>
+            );
+          })}
+        </div>
+
+        <button className="primary-btn center-btn" onClick={generateDietPlan} disabled={loading}>
+          {loading ? "Generating..." : "Regenerate Plan"}
+        </button>
+
+        <p className="disclaimer">
+          These suggestions are informational and are not medical advice.
+        </p>
+      </section>
+    </main>
   );
 }

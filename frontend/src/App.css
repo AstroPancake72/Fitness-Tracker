@@ -255,12 +255,9 @@ body {
 body {
   margin: 0;
   min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
   background-color: #CCD5C0;
   font-family: Arial, sans-serif;
-  color: #38422b
+  color: #38422b;
 }
 
 .login-container p {
@@ -327,4 +324,268 @@ body {
   color: #8b2e2e;
   font-weight: bold;
   margin-top: 10px;
+}
+
+.page-shell {
+  max-width: 1200px;
+  margin: 48px auto;
+  padding: 0 24px;
+}
+
+.profile-card,
+.diet-card {
+  background: #F5F1E8;
+  border: 1.5px solid #6E775C;
+  border-radius: 18px;
+  padding: 42px;
+  box-shadow: 0 12px 30px rgba(56, 66, 43, 0.15);
+  color: #38422B;
+}
+
+.profile-card h1,
+.diet-card h1 {
+  color: #38422B;
+  font-size: 42px;
+  margin: 0 0 28px;
+  border-bottom: 3px solid #9FB873;
+  width: fit-content;
+  padding-bottom: 8px;
+}
+
+.profile-layout {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  align-items: center;
+  gap: 48px;
+}
+
+.profile-list p {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  border-bottom: 1px solid #d8d3c7;
+  padding: 12px 0;
+  margin: 0;
+  font-size: 18px;
+  color: #38422B;
+}
+
+.profile-list strong {
+  color: #38422B;
+}
+
+.profile-list span {
+  color: #111;
+}
+
+.profile-art {
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  background: #E8EEE1;
+  display: grid;
+  place-items: center;
+  font-size: 130px;
+  margin: 0 auto;
+}
+
+.profile-form {
+  display: grid;
+  gap: 12px;
+  max-width: 650px;
+}
+
+.profile-form label {
+  font-weight: 700;
+  color: #38422B;
+}
+
+.profile-form input,
+.profile-form select,
+.profile-form textarea {
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #6E775C;
+  background: white;
+  color: #111;
+  font-size: 16px;
+}
+
+.profile-form textarea {
+  min-height: 90px;
+}
+
+.primary-btn,
+.secondary-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 13px 22px;
+  font-weight: 700;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.primary-btn {
+  background: #38422B;
+  color: white;
+}
+
+.secondary-btn {
+  background: #E8EEE1;
+  color: #38422B;
+}
+
+.button-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.status-message,
+.disclaimer {
+  margin-top: 18px;
+  color: #38422B;
+}
+
+.success-box {
+  background: #E8EEE1;
+  border: 1px solid #CCD5C0;
+  border-radius: 10px;
+  padding: 14px 18px;
+  font-weight: 700;
+  margin-bottom: 22px;
+  color: #38422B;
+}
+
+.diet-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 28px;
+}
+
+.diet-summary div {
+  border: 1px solid #d8d3c7;
+  border-radius: 10px;
+  padding: 16px;
+  background: #fbfaf5;
+  color: #38422B;
+}
+
+.diet-card h2 {
+  color: #38422B;
+  font-size: 26px;
+  margin: 28px 0 16px;
+}
+
+.nutrition-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.nutrition-box {
+  background: #E8EEE1;
+  border: 1px solid #CCD5C0;
+  border-radius: 12px;
+  padding: 22px;
+  text-align: center;
+  color: #38422B;
+}
+
+.nutrition-box span {
+  font-size: 30px;
+}
+
+.nutrition-box p {
+  margin: 8px 0;
+}
+
+.nutrition-box strong {
+  display: block;
+  font-size: 26px;
+  color: #38422B;
+}
+
+.meal-list {
+  display: grid;
+  gap: 14px;
+}
+
+.meal-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-decoration: none;
+  color: #38422B;
+  background: #fbfaf5;
+  border: 1px solid #d8d3c7;
+  border-radius: 12px;
+  padding: 18px 22px;
+}
+
+.meal-card h3 {
+  margin: 0 0 6px;
+  color: #38422B;
+}
+
+.meal-card p {
+  margin: 0;
+}
+
+.center-btn {
+  display: block;
+  margin: 28px auto 0;
+}
+
+@media (max-width: 800px) {
+  .profile-layout,
+  .diet-summary,
+  .nutrition-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-list p {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+
+.meal-card {
+  display: grid;
+  grid-template-columns: 90px 1fr auto;
+  gap: 18px;
+  align-items: center;
+}
+
+.meal-image {
+  width: 90px;
+  height: 70px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+.meal-info h3 {
+  margin: 0 0 6px;
+}
+
+.profile-art {
+  position: relative;
+  overflow: hidden;
+}
+
+.profile-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.upload-btn {
+  position: absolute;
+  bottom: 12px;
+  background: #38422b;
+  color: white;
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
 }

@@ -2,6 +2,8 @@ const express = require("express");
 const session = require("express-session");
 const cors = require("cors");
 const axios = require("axios");
+const multer = require("multer");
+const path = require("path");
 const mongoose = require("mongoose");
 require("dotenv").config();
 const bcrypt = require("bcrypt");
@@ -14,6 +16,7 @@ app.use(
   })
 );
 app.use(express.json());
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use(
   session({
@@ -83,6 +86,7 @@ const profileSchema = new mongoose.Schema({
   fitnessGoal: { type: String, default: "" },
   activityLevel: { type: String, default: "" },
   bio: { type: String, default: "" },
+  profileImage: { type: String, default: "" },
 }, { timestamps: true });
 
 const Profile = mongoose.model("Profile", profileSchema);
@@ -106,6 +110,18 @@ const dietPlanSchema = new mongoose.Schema({
 });
 
 const DietPlan = mongoose.model("DietPlan", dietPlanSchema);
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads/");
+  },
+  filename: (req, file, cb) => {
+    const uniqueName = `${Date.now()}-${file.originalname}`;
+    cb(null, uniqueName);
+  },
+});
+
+const upload = multer({ storage });
 
 // 2. Signup Route
 app.post("/api/signup", async (req, res) => {
@@ -321,6 +337,26 @@ app.put("/api/profile", async (req, res) => {
     console.error("Profile save error:", err);
     res.status(500).json({ message: "Failed to save profile" });
   }
+});
+
+app.post("/api/profile/image", upload.single("profileImage"), async (req, res) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ message: "Not logged in" });
+  }
+
+  if (!req.file) {
+    return res.status(400).json({ message: "No image uploaded" });
+  }
+
+  const imagePath = `/uploads/${req.file.filename}`;
+
+  const updatedProfile = await Profile.findOneAndUpdate(
+    { userId: req.session.userId },
+    { profileImage: imagePath },
+    { returnDocument: "after", upsert: true }
+  );
+
+  res.json(updatedProfile);
 });
 
 function calculateTargetCalories(profile) {
