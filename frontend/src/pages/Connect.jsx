@@ -64,6 +64,20 @@ export default function Connect({ onOpenMessage }) {
     }
   }
 
+  async function handleDisconnect(profileId) {
+    try {
+      const response = await fetch(`http://localhost:5000/api/connections/${profileId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (response.ok) {
+        setConnections((prev) => prev.filter((c) => c._id !== profileId));
+      }
+    } catch (err) {
+      console.error("Disconnect error:", err);
+    }
+  }
+
   async function handleRespond(requesterId, action) {
     try {
       const response = await fetch("http://localhost:5000/api/requests/respond", {
@@ -260,6 +274,13 @@ export default function Connect({ onOpenMessage }) {
                           onClick={() => onOpenMessage(user.userId?.toString?.() || user._id)}
                         >
                           Message
+                        </button>
+                        <button
+                          className="counter"
+                          style={{ flex: 1, background: "#8B0000", color: "white" }}
+                          onClick={() => handleDisconnect(user._id)}
+                        >
+                          Remove
                         </button>
                       </div>
                     </div>
