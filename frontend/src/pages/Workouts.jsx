@@ -57,7 +57,7 @@ export default function Workouts() {
       originalDate: routine.datetime, 
       originalName: routine.name,
       name: routine.name,
-      exercises: routine.exercises.map(ex => ({ ...ex, isOriginal: false }))
+      exercises: routine.exercises.map(ex => ({ ...ex, instructions: ex.instructions || "", isOriginal: false }))
     });
   }
 
@@ -72,6 +72,7 @@ export default function Workouts() {
         reps: ex.reps || 0,
         sets: ex.sets || 0,
         time: ex.time || 0,
+        instructions: ex.instructions || "",
         isOriginal: true 
       }))
     });
@@ -131,6 +132,7 @@ export default function Workouts() {
         reps: rest.reps === "" ? 0 : Number(rest.reps),
         sets: rest.sets === "" ? 0 : Number(rest.sets),
         time: rest.time === "" ? 0 : Number(rest.time),
+        instructions: rest.instructions || ""
       }));
 
      const shouldBeTemplate = activeWorkout.isEditing || activeWorkout.templateId === undefined;
@@ -218,7 +220,7 @@ export default function Workouts() {
               <div style={{textAlign: 'left'}}>
                 <div style={{fontWeight: 'bold', fontSize: '18px', textTransform: 'capitalize'}}>{r.name}</div>
                 <div style={{fontSize: '12px', color: '#666'}}>
-                  {r.name.startsWith("Suggested:") ? "✨ AI Recommendation" : "Custom Template"}
+                  {r.name.startsWith("Suggested:") ? "Recommended" : "Custom "}
                 </div>
               </div>
               <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
@@ -230,70 +232,98 @@ export default function Workouts() {
           ))}
         </div>
       ) : (
-        <div style={sessionBoxStyle}>
-          {activeWorkout.isEditing && (
-            <div style={{ marginBottom: '15px' }}>
-              <input 
-                className="login-input-style" 
-                value={activeWorkout.name} 
-                onChange={(e) => setActiveWorkout({...activeWorkout, name: e.target.value})} 
-                placeholder="Routine Name"
-                style={{ width: '100%', boxSizing: 'border-box' }}
-              />
+        <>
+          {activeWorkout.exercises.some(ex => ex.instructions) && (
+            <div style={{
+              textAlign: 'left',
+              fontSize: '13px',
+              color: '#38422B',
+              background: '#EAEFE3',
+              padding: '12px 15px',
+              borderRadius: '12px',
+              border: '1px solid #38422B',
+              borderLeft: '5px solid #38422B',
+              lineHeight: '1.5',
+              marginBottom: '15px',
+              boxSizing: 'border-box',
+              width: '100%'
+            }}>
+              <strong style={{ fontSize: '14px', display: 'block', marginBottom: '4px' }}> Exercise Guide Instructions:</strong>
+              {activeWorkout.exercises.map((ex, idx) => ex.instructions ? (
+                <div key={idx} style={{ margin: '4px 0' }}>
+                  <strong>{ex.name || "Exercise"}:</strong> {ex.instructions}
+                </div>
+              ) : null)}
             </div>
           )}
 
-          <div style={{display: 'flex', fontWeight: 'bold', padding: '10px 10px 5px 10px', textAlign: 'left', fontSize: '14px'}}>
-            <span style={{flex: 2}}>name</span>
-            <span style={{flex: 1}}>weight</span>
-            <span style={{flex: 1}}>reps</span>
-            <span style={{flex: 1}}>sets</span>
-            <span style={{flex: 1}}>time (min)</span>
-            <span style={{width: '35px'}}></span>
-          </div>
-          <hr style={{ border: '1px solid #38422B', marginBottom: '15px', marginTop: '0' }} />
-
-          {activeWorkout.exercises.map((ex, i) => {
-            const isFieldDisabled = !activeWorkout.isEditing && ex.isOriginal;
-
-            return (
-              <div key={i} style={{...exerciseRowStyle, opacity: isFieldDisabled ? 0.85 : 1}}>
+          <div style={sessionBoxStyle}>
+            {activeWorkout.isEditing && (
+              <div style={{ marginBottom: '15px' }}>
                 <input 
-                  value={ex.name} 
-                  onChange={(e) => updateExercise(i, 'name', e.target.value)} 
-                  style={{flex: 2, border: 'none', background: 'transparent', fontWeight: isFieldDisabled ? 'bold' : 'normal'}} 
-                  placeholder="Exercise..."
-                  disabled={isFieldDisabled}
+                  className="login-input-style" 
+                  value={activeWorkout.name} 
+                  onChange={(e) => setActiveWorkout({...activeWorkout, name: e.target.value})} 
+                  placeholder="Routine Name"
+                  style={{ width: '100%', boxSizing: 'border-box' }}
                 />
-                
-                <input type="number" value={ex.weight === 0 ? "" : ex.weight} placeholder="0" onChange={(e) => updateExercise(i, 'weight', e.target.value)} style={{flex: 1, width: '40px'}} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
-                <input type="number" value={ex.reps === 0 ? "" : ex.reps} placeholder="0" onChange={(e) => updateExercise(i, 'reps', e.target.value)} style={{flex: 1, width: '40px'}} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
-                <input type="number" value={ex.sets === 0 ? "" : ex.sets} placeholder="0" onChange={(e) => updateExercise(i, 'sets', e.target.value)} style={{flex: 1, width: '40px'}} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
-                <input type="number" value={ex.time === 0 ? "" : ex.time} placeholder="0" onChange={(e) => updateExercise(i, 'time', e.target.value)} style={{flex: 1, width: '40px'}} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
-                
-                {!isFieldDisabled ? (
-                  <button onClick={() => openDeleteModal('exercise', i)} style={deleteBtnStyle}>✕</button>
-                ) : (
-                  <span style={{width: '30px'}}></span>
-                )}
               </div>
-            );
-          })}
+            )}
 
-          {activeWorkout.isEditing && (
-            <button className="counter" style={{width: '100%', background: 'transparent', color: '#38422B', border: '1px dashed #38422B', marginBottom: '20px'} } 
-                    onClick={() => setActiveWorkout({...activeWorkout, exercises: [...activeWorkout.exercises, {name: "", weight: 0, reps: 0, sets: 0, time: 0, isOriginal: false}]})}>
-              + Add Exercise to Template
-            </button>
-          )}
+            <div style={{display: 'flex', fontWeight: 'bold', padding: '10px 10px 5px 10px', textAlign: 'left', fontSize: '14px'}}>
+              <span style={{flex: 2}}>name</span>
+              <span style={{flex: 1}}>weight</span>
+              <span style={{flex: 1}}>reps</span>
+              <span style={{flex: 1}}>sets</span>
+              <span style={{flex: 1}}>time (min)</span>
+              <span style={{width: '35px'}}></span>
+            </div>
+            <hr style={{ border: '1px solid #38422B', marginBottom: '10px', marginTop: '0' }} />
 
-          <div style={{display: 'flex', gap: '10px', marginTop: '20px'}}>
-            <button className="counter" style={{background: '#8B0000', flex: 1}} onClick={() => setActiveWorkout(null)}>Exit</button>
-            <button className="counter" style={{flex: 2}} onClick={saveWorkout}>
-              {activeWorkout.isEditing ? "Save Template Config" : "Log Session to History"}
-            </button>
+            {activeWorkout.exercises.map((ex, i) => {
+              const isFieldDisabled = !activeWorkout.isEditing && ex.isOriginal;
+
+              return (
+                <div key={i} style={{ marginBottom: '12px' }}>
+                  <div style={{...exerciseRowStyle, opacity: isFieldDisabled ? 0.85 : 1, marginBottom: '0'}}>
+                    <input 
+                      value={ex.name} 
+                      onChange={(e) => updateExercise(i, 'name', e.target.value)} 
+                      style={{flex: 2, border: 'none', background: 'transparent', fontWeight: isFieldDisabled ? 'bold' : 'normal'}} 
+                      placeholder="Exercise..."
+                      disabled={isFieldDisabled}
+                    />
+                    
+                    <input type="number" value={ex.weight === 0 ? "" : ex.weight} placeholder="0" onChange={(e) => updateExercise(i, 'weight', e.target.value)} style={{flex: 1, width: '40px'}} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
+                    <input type="number" value={ex.reps === 0 ? "" : ex.reps} placeholder="0" onChange={(e) => updateExercise(i, 'reps', e.target.value)} style={{flex: 1, width: '40px'}} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
+                    <input type="number" value={ex.sets === 0 ? "" : ex.sets} placeholder="0" onChange={(e) => updateExercise(i, 'sets', e.target.value)} style={{flex: 1, width: '40px'}} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
+                    <input type="number" value={ex.time === 0 ? "" : ex.time} placeholder="0" onChange={(e) => updateExercise(i, 'time', e.target.value)} style={{flex: 1, width: '40px'}} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
+                    
+                    {!isFieldDisabled ? (
+                      <button onClick={() => openDeleteModal('exercise', i)} style={deleteBtnStyle}>✕</button>
+                    ) : (
+                      <span style={{width: '30px'}}></span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {activeWorkout.isEditing && (
+              <button className="counter" style={{width: '100%', background: 'transparent', color: '#38422B', border: '1px dashed #38422B', marginBottom: '20px'} } 
+                      onClick={() => setActiveWorkout({...activeWorkout, exercises: [...activeWorkout.exercises, {name: "", weight: 0, reps: 0, sets: 0, time: 0, isOriginal: false}]})}>
+                + Add Exercise to Template
+              </button>
+            )}
+
+            <div style={{display: 'flex', gap: '10px', marginTop: '20px'}}>
+              <button className="counter" style={{background: '#8B0000', flex: 1}} onClick={() => setActiveWorkout(null)}>Exit</button>
+              <button className="counter" style={{flex: 2}} onClick={saveWorkout}>
+                {activeWorkout.isEditing ? "Save Template Config" : "Log Session to History"}
+              </button>
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   )

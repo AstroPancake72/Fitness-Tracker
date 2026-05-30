@@ -76,6 +76,7 @@ async function handleSelectSuggestedExercise(exercise) {
           reps: exercise.reps || 0,
           sets: exercise.sets || 0,
           time: exercise.time || null,
+          instructions: exercise.instructions || "",
           isOriginal: true 
         }
       ]
@@ -133,7 +134,7 @@ async function handleSelectSuggestedExercise(exercise) {
             <button onClick={() => navigateTo('workouts')} className="counter" style={page === 'workouts' ? activeNavBtn : {}}>Workouts</button>
             <button onClick={() => navigateTo('history')} className="counter" style={page === 'history' ? activeNavBtn : {}}>History</button>
             <button onClick={() => navigateTo('goals')} className="counter" style={page === 'goals' ? activeNavBtn : {}}>Goals</button>
-            <button onClick={() => navigateTo('suggestions')} className="counter" style={page === 'suggestions' ? activeNavBtn : {}}>Suggestions</button>
+            <button onClick={() => navigateTo('suggestions')} className="counter" style={page === 'suggestions' ? activeNavBtn : {}}>Exercise Suggestions</button>
             <button onClick={() => navigateTo('profile')} className="counter" style={page === 'profile' ? activeNavBtn : {}}>Profile</button>
             <button onClick={() => navigateTo('connect')} className="counter" style={page === 'connect' ? activeNavBtn : {}}>Connect</button>
             <button onClick={() => navigateTo('messages')} className="counter" style={page === 'messages' ? activeNavBtn : {}}>Messages</button>

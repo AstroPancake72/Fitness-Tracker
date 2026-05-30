@@ -77,6 +77,7 @@ const workoutSchema = new mongoose.Schema({
       reps: { type: Number, default: 0 },
       sets: { type: Number, default: 0 },
       time: { type: Number, default: null },
+      instructions: { type: String, default: "" }
     },
   ],
 });
@@ -240,7 +241,7 @@ app.post("/api/forgot-password", async (req, res) => {
 
     const code = Math.floor(Math.random() * 1000000).toString().padStart(6, "0");
     user.resetPasswordCode = code;
-    user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // 15 mins
+    user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; 
     await user.save();
 
     await transporter.sendMail({
@@ -351,7 +352,7 @@ app.put("/api/workouts/:id", async (req, res) => {
     const updatedWorkout = await Workout.findByIdAndUpdate(
       id,
       { name, datetime, exercises, isTemplate }, 
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     );
     if (!updatedWorkout) return res.status(404).json({ message: "Workout routine not found" });
     res.json(updatedWorkout);
@@ -726,8 +727,8 @@ app.get('/api/goals/progress', async (req, res) => {
 });
 
 
-let cachedSuggestions = null;
-let cacheExpirationTime = 0;
+let suggestionsCache = {};
+
 
 // exercise suggestions
 app.get("/api/exercise-suggestions", async (req, res) => {
@@ -736,13 +737,13 @@ app.get("/api/exercise-suggestions", async (req, res) => {
   try {
     const profile = await Profile.findOne({ userId: req.session.userId });
     const userGoal = profile?.currentGoal || "Getting Stronger";
-
     const currentTime = Date.now();
-    if (cachedSuggestions && currentTime < cacheExpirationTime) {
-      console.log("Serving suggestions directly from backend cache (Saving API Quota!)");
+
+    if (suggestionsCache[userGoal] && currentTime < suggestionsCache[userGoal].expirationTime) {
+      console.log(`Serving cached suggestions for goal: ${userGoal} (Saving API Quota!)`);
       return res.json({
         goal: userGoal,
-        suggestions: cachedSuggestions
+        suggestions: suggestionsCache[userGoal].data
       });
     }
 
@@ -755,7 +756,7 @@ app.get("/api/exercise-suggestions", async (req, res) => {
       targetPath = 'exercises/equipment/barbell?limit=10';
     }
 
-    console.log("Cache expired or empty. Making a LIVE request to ExerciseDB...");
+    console.log(`Cache expired or empty for [${userGoal}]. Making a LIVE request to ExerciseDB...`);
     const response = await axios.get(`https://exercisedb.p.rapidapi.com/${targetPath}`, {
       headers: {
         'x-rapidapi-key': process.env.RAPIDAPI_KEY, 
@@ -785,8 +786,10 @@ app.get("/api/exercise-suggestions", async (req, res) => {
       };
     });
 
-    cachedSuggestions = suggestions;
-    cacheExpirationTime = currentTime + (5 * 60 * 1000);
+    suggestionsCache[userGoal] = {
+      data: suggestions,
+      expirationTime: currentTime + (5 * 60 * 1000) // 5 minutes
+    };
 
     res.json({
       goal: userGoal,
