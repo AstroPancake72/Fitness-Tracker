@@ -9,12 +9,32 @@ export default function Signup({ onBack }) {
   const [code, setCode] = useState("");
   const [message, setMessage] = useState("");
 
+  function getPasswordChecks(password) {
+  return [
+    { label: "At least 8 characters", valid: password.length >= 8 },
+    { label: "At least one uppercase letter", valid: /[A-Z]/.test(password) },
+    { label: "At least one lowercase letter", valid: /[a-z]/.test(password) },
+    { label: "At least one number", valid: /\d/.test(password) },
+    { label: "At least one special character", valid: /[^A-Za-z0-9]/.test(password) },
+    ];
+  }
+
+  const passwordChecks = getPasswordChecks(password);
+  const isPasswordValid = passwordChecks.every((check) => check.valid);
+
+
   async function handleSignup(e) {
     e.preventDefault();
 
     // fake signup flow — replace with real API call later
     if (!email || !password) {
       setMessage("Please provide email and password");
+      return;
+    }
+
+    // check pwd reqs
+    if (!isPasswordValid) {
+      setMessage("Password does not meet all requirements.");
       return;
     }
 
@@ -109,7 +129,15 @@ export default function Signup({ onBack }) {
           onChange={(e) => setPassword(e.target.value)}
         />
 
-        <button type="submit">Sign Up</button>
+        <ul className="password-rules">
+          {passwordChecks.map((check) => (
+            <li key={check.label} className={check.valid ? "valid-rule" : "invalid-rule"}>
+              {check.valid ? "✓" : "○"} {check.label}
+            </li>
+          ))}
+        </ul>
+
+        <button type="submit" disabled={!email || !password || !isPasswordValid}> Sign Up </button>
       </form>
 
       {message && <p className="error">{message}</p>}

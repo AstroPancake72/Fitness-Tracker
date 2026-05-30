@@ -589,3 +589,23 @@ body {
   cursor: pointer;
   font-size: 14px;
 }
+
+.password-rules {
+  text-align: left;
+  margin: 8px 0 14px;
+  padding-left: 20px;
+  font-size: 0.9rem;
+}
+
+.valid-rule {
+  color: #2e7d32;
+}
+
+.invalid-rule {
+  color: #777;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
