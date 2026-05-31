@@ -91,7 +91,6 @@ async function handleSelectSuggestedExercise(exercise) {
 
     if (!response.ok) throw new Error("Failed to save suggestion template");
 
-    alert(`"${exercise.name}" added to your routines dashboards!`);
   } catch (error) {
     console.error(error);
   }

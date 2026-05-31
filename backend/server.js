@@ -103,6 +103,35 @@ const profileSchema = new mongoose.Schema(
 );
 profileSchema.index({ "connections.userId": 1 });
 
+const goalSchema = new mongoose.Schema(
+  {
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    macroCategory: { 
+      type: String, 
+      enum: ['STRENGTH', 'HYPERTROPHY', 'CARDIOVASCULAR', 'BODY_COMPOSITION', 'CONSISTENCY'], 
+      required: true 
+    },
+    goalType: { 
+      type: String, 
+      // Updated to strictly line up with both your frontend form strings
+      enum: ['1RM', 'ENDURANCE', 'BODYWEIGHT', 'VOLUME', 'FREQUENCY', 'COMPLETION'], 
+      required: true 
+    },
+    // ADD THIS STATUS FIELD HERE:
+    status: {
+      type: String,
+      enum: ['ACTIVE', 'COMPLETED'],
+      default: 'ACTIVE',
+      required: true
+    },
+    exerciseName: { type: String, default: "" }, 
+    startingValue: { type: Number, required: true },
+    targetValue: { type: Number, required: true },
+    deadline: { type: Date, default: null }
+  },
+  { timestamps: true }
+);
+const Goal = mongoose.model("Goal", goalSchema);
 const messageSchema = new mongoose.Schema({
   senderId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   receiverId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
@@ -665,68 +694,110 @@ io.on("connection", (socket) => {
   });
 });
 
-app.put('/api/goals/set', async (req, res) => {
-  if (!req.session.userId) return res.status(401).json({ message: 'Not logged in' });
-  const { goal } = req.body;
-  try {
-    const profile = await Profile.findOneAndUpdate(
-      { userId: req.session.userId },
-      { currentGoal: goal },
-      { new: true, upsert: true }
-    );
-    res.json({ currentGoal: profile.currentGoal });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error updating goal' });
-  }
-});
+// GET /api/goals - Fetch all active goals with live calculated progress data
+app.get("/api/goals", async (req, res) => {
+  if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
 
-// GET /api/goals/progress
-app.get('/api/goals/progress', async (req, res) => {
-  if (!req.session.userId) return res.status(401).json({ message: 'Not logged in' });
   try {
     const userId = new mongoose.Types.ObjectId(req.session.userId);
-    const profile = await Profile.findOne({ userId });
+    
+    const goals = await Goal.find({ user: userId }).sort({ createdAt: -1 });
 
-    if (!profile || !profile.currentGoal) {
-      return res.json({ currentGoal: null, progressData: [] });
-    }
+    const goalsWithProgress = await Promise.all(goals.map(async (goal) => {
+      let currentValue = goal.startingValue; // Fallback to starting value if no workouts logged yet
 
-    let progressData = [];
+      if (goal.macroCategory === 'STRENGTH' && goal.goalType === '1RM' && goal.exerciseName) {
+        const maxLift = await Workout.aggregate([
+          { $match: { userId: userId, isTemplate: false } },
+          { $unwind: '$exercises' },
+          { $match: { "exercises.name": { $regex: new RegExp(`^${goal.exerciseName}$`, 'i') } } },
+          { $group: { _id: null, currentMax: { $max: "$exercises.weight" } } }
+        ]);
 
-    if (profile.currentGoal === 'Getting Stronger') {
-      progressData = await Workout.aggregate([
-        { $match: { userId } },
-        { $unwind: '$exercises' },
-        {
-          $group: {
-            _id: { date: { $dateToString: { format: '%Y-%m', date: '$datetime' } }, exerciseName: '$exercises.name' },
-            maxWeight: { $max: '$exercises.weight' }
-          }
-        },
-        { $sort: { '_id.date': 1 } }
-      ]);
-    } else if (profile.currentGoal === 'Losing Weight' || profile.currentGoal === 'Increasing Muscle Mass') {
-      progressData = await Workout.aggregate([
-        { $match: { userId } },
-        {
-          $group: {
-            _id: { $dateToString: { format: '%Y-%m', date: '$datetime' } },
-            totalSets: { $sum: { $sum: '$exercises.sets' } },
-            sessionCount: { $sum: 1 }
-          }
-        },
-        { $sort: { _id: 1 } }
-      ]);
-    }
+        if (maxLift.length > 0) {
+          currentValue = maxLift[0].currentMax;
+        }
+      } 
+      else if (goal.macroCategory === 'CARDIOVASCULAR' && goal.goalType === 'ENDURANCE' && goal.exerciseName) {
+        const maxTime = await Workout.aggregate([
+          { $match: { userId: userId, isTemplate: false } },
+          { $unwind: '$exercises' },
+          { $match: { "exercises.name": { $regex: new RegExp(`^${goal.exerciseName}$`, 'i') } } },
+          { $group: { _id: null, maxDuration: { $max: "$exercises.time" } } }
+        ]);
 
-    res.json({ currentGoal: profile.currentGoal, progressData });
+        if (maxTime.length > 0 && maxTime[0].maxDuration) {
+          currentValue = maxTime[0].maxDuration;
+        }
+      }
+      else if (goal.macroCategory === 'CONSISTENCY' && goal.goalType === 'FREQUENCY') {
+        // Count how many workouts total have been logged as a consistency check
+        const count = await Workout.countDocuments({ userId: userId, isTemplate: false });
+        currentValue = count;
+      }
+
+      // 3. Compute completion percentage
+      const totalRequired = goal.targetValue - goal.startingValue;
+      const amountProgressed = currentValue - goal.startingValue;
+      
+      let percentage = 0;
+      if (totalRequired > 0) {
+        percentage = (amountProgressed / totalRequired) * 100;
+      } else if (totalRequired === 0 && currentValue >= goal.targetValue) {
+        // Handles cases where starting value equals target value
+        percentage = 100;
+      }
+      
+      // Keep boundary strictly between 0% and 100%
+     percentage = Math.max(0, Math.min(100, percentage));
+
+      return {
+        ...goal.toObject(),
+        status: goal.status || 'ACTIVE', // Safe fallback reassurance for existing database documents
+        currentValue,
+        percentageCompleted: Math.round(percentage)
+      };
+    }));
+
+    res.status(200).json(goalsWithProgress);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error fetching progress data' });
+    console.error("Error fetching goals with progress:", err);
+    res.status(500).json({ message: "Server error fetching goal telemetry data." });
   }
 });
+//post
+app.post("/api/goals/create", async (req, res) => {
+  if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
 
+  try {
+    const { macroCategory, goalType, exerciseName, startingValue, targetValue, deadline } = req.body;
 
+    // Only strictly require the fundamental classifiers
+    if (!macroCategory || !goalType) {
+      return res.status(400).json({ message: "Missing required tracking parameters." });
+    }
+
+    // Prepare the document with clean defaults so validation passes
+    const newGoal = new Goal({
+      user: req.session.userId,
+      macroCategory,
+      // Map 'GOAL' form submissions to 'COMPLETION' to pass Mongoose enum checks
+      goalType: goalType === 'GOAL' ? 'COMPLETION' : goalType,
+      status: 'ACTIVE',
+      exerciseName: exerciseName || "",
+      startingValue: startingValue !== undefined ? Number(startingValue) : 0,
+      targetValue: targetValue !== undefined ? Number(targetValue) : 1,
+      deadline: deadline ? new Date(deadline) : null
+    });
+
+    await newGoal.save();
+    res.status(201).json(newGoal);
+  } catch (err) {
+    console.error("Error creating goal:", err);
+    res.status(500).json({ message: "Failed to persist goal configuration." });
+  }
+});
+//
 let suggestionsCache = {};
 
 
@@ -735,28 +806,30 @@ app.get("/api/exercise-suggestions", async (req, res) => {
   if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
 
   try {
-    const profile = await Profile.findOne({ userId: req.session.userId });
-    const userGoal = profile?.currentGoal || "Getting Stronger";
+const latestGoal = await Goal.findOne({ user: req.session.userId,  goalType: 'COMPLETION', status: 'ACTIVE' }).sort({ createdAt: -1 });
+    const userCategory = latestGoal?.macroCategory || "STRENGTH";
     const currentTime = Date.now();
 
-    if (suggestionsCache[userGoal] && currentTime < suggestionsCache[userGoal].expirationTime) {
-      console.log(`Serving cached suggestions for goal: ${userGoal} (Saving API Quota!)`);
+    // Check memory cache
+    if (suggestionsCache[userCategory] && currentTime < suggestionsCache[userCategory].expirationTime) {
+      console.log(`Serving cached suggestions for category: ${userCategory}`);
       return res.json({
-        goal: userGoal,
-        suggestions: suggestionsCache[userGoal].data
+        goal: userCategory,
+        suggestions: suggestionsCache[userCategory].data
       });
     }
 
+    // 2. Map your frontend categories to the correct ExerciseDB API paths
     let targetPath = 'exercises?limit=10';
-    if (userGoal === "Losing Weight") {
+    if (userCategory === "CARDIOVASCULAR" || userCategory === "BODY_COMPOSITION") {
       targetPath = 'exercises/bodyPart/cardio?limit=10';
-    } else if (userGoal === "Increasing Muscle Mass") {
+    } else if (userCategory === "HYPERTROPHY") {
       targetPath = 'exercises/target/pectorals?limit=10';
-    } else if (userGoal === "Getting Stronger") {
+    } else if (userCategory === "STRENGTH") {
       targetPath = 'exercises/equipment/barbell?limit=10';
     }
 
-    console.log(`Cache expired or empty for [${userGoal}]. Making a LIVE request to ExerciseDB...`);
+    console.log(`Making LIVE request to ExerciseDB for category [${userCategory}]...`);
     const response = await axios.get(`https://exercisedb.p.rapidapi.com/${targetPath}`, {
       headers: {
         'x-rapidapi-key': process.env.RAPIDAPI_KEY, 
@@ -765,13 +838,11 @@ app.get("/api/exercise-suggestions", async (req, res) => {
     });
 
     const rawData = response.data;
-
     const suggestions = rawData.slice(0, 5).map(exercise => {
-      let baselineWeight = 0;
-      if (userGoal === "Increasing Muscle Mass") baselineWeight = 25;
-      if (userGoal === "Getting Stronger") baselineWeight = 45;
-
       const isCardio = exercise.bodyPart === "cardio";
+      let baselineWeight = 0;
+      if (userCategory === "HYPERTROPHY") baselineWeight = 25;
+      if (userCategory === "STRENGTH") baselineWeight = 45;
 
       return {
         name: exercise.name,
@@ -786,13 +857,14 @@ app.get("/api/exercise-suggestions", async (req, res) => {
       };
     });
 
-    suggestionsCache[userGoal] = {
+    // Save to cache
+    suggestionsCache[userCategory] = {
       data: suggestions,
-      expirationTime: currentTime + (5 * 60 * 1000) // 5 minutes
+      expirationTime: currentTime + (5 * 60 * 1000)
     };
 
     res.json({
-      goal: userGoal,
+      goal: userCategory,
       suggestions: suggestions
     });
 
@@ -805,4 +877,3 @@ app.get("/api/exercise-suggestions", async (req, res) => {
 server.listen(5000, () => {
   console.log("Server running on port 5000");
 });
-

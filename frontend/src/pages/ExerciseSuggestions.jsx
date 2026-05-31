@@ -1,40 +1,48 @@
 import { useState, useEffect } from "react";
 
 export default function ExerciseSuggestions({ onSelectSuggestedExercise }) {
-  const [goal, setGoal] = useState("");
+  const [goalTypeKey, setGoalTypeKey] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [successBanner, setSuccessBanner] = useState({ visible: false, exerciseName: "" });
 
- useEffect(() => {
-  const controller = new AbortController();
-  
-  async function fetchSuggestions() {
-    try {
-      const response = await fetch("http://localhost:5000/api/exercise-suggestions", {
-        credentials: "include",
-        signal: controller.signal 
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setGoal(data.goal);
-        setSuggestions(data.suggestions);
-      }
-    } catch (err) {
-      if (err.name !== 'AbortError') {
-        console.error("Failed fetching suggestions:", err);
-      }
-    } finally {
-      if (!controller.signal.aborted) {
-        setLoading(false);
+  const readableGoalNames = {
+    STRENGTH: "Strength & Power",
+    HYPERTROPHY: "Hypertrophy (Muscle Building)",
+    CARDIOVASCULAR: "Cardiovascular Endurance",
+    BODY_COMPOSITION: "Body Composition",
+    CONSISTENCY: "Consistency & Mobility"
+  };
+
+  useEffect(() => {
+    const controller = new AbortController();
+    
+    async function fetchSuggestions() {
+      try {
+        const response = await fetch("http://localhost:5000/api/exercise-suggestions", {
+          credentials: "include",
+          signal: controller.signal 
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setGoalTypeKey(data.goal || "");
+          setSuggestions(data.suggestions || []);
+        }
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          console.error("Failed fetching suggestions:", err);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       }
     }
-  }
 
-  fetchSuggestions();
-
-  return () => controller.abort(); 
-}, []);
+    fetchSuggestions();
+    return () => controller.abort(); 
+  }, []);
 
   const handleAddClick = (item) => {
     onSelectSuggestedExercise(item);
@@ -76,12 +84,12 @@ export default function ExerciseSuggestions({ onSelectSuggestedExercise }) {
       )}
 
       <p style={{ background: "#CCD5C0", padding: "10px", borderRadius: "5px", display: "inline-block" }}>
-          Current Focus Goal: <strong>{goal || "General Fitness"}</strong>
+        Suggested for your Goal: <strong>{readableGoalNames[goalTypeKey] || "General Fitness Selection"}</strong>
       </p>
 
       <div style={{ marginTop: "20px" }}>
         {suggestions.length === 0 ? (
-          <p>No suggestions available at this time.</p>
+          <p>No active suggestions available. Select a Macro Goal category in your Goals Tab to populate routines.</p>
         ) : (
           suggestions.map((item, index) => (
             <div key={index} style={{ background: "#F1F3EE", padding: "15px", borderRadius: "8px", border: "1px solid #CCD5C0", marginBottom: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -93,7 +101,7 @@ export default function ExerciseSuggestions({ onSelectSuggestedExercise }) {
                 <span style={{ fontSize: "13px", color: "#38422B", fontWeight: 'bold' }}>
                   {item.time || item.type === "cardio" 
                     ? `Duration: ${item.time || 25} mins` 
-                    : ` Target: ${item.sets} sets x ${item.reps} reps @ ${item.weight} lbs`}
+                    : `Target: ${item.sets || 4} sets x ${item.reps || 10} reps @ ${item.weight || 0} lbs`}
                 </span>
               </div>
               <button 
