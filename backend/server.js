@@ -925,6 +925,117 @@ app.delete("/api/goals/:id", async (req, res) => {
     res.status(500).json({ message: "Error deleting goal" });
   }
 });
+//
+let suggestionsCache = {};
+let exerciseListCache = null;
+let exerciseListExpiry = 0;
+
+app.get("/api/exercises", async (req, res) => {
+  if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+
+  try {
+    const now = Date.now();
+    if (exerciseListCache && now < exerciseListExpiry) {
+      return res.json(exerciseListCache);
+    }
+
+    // Fetch in batches of 100 across multiple offsets
+    const limit = 100;
+    const totalToFetch = 1300;
+    const requests = [];
+
+    const allExercises = [];
+    for (let offset = 0; offset < totalToFetch; offset += limit) {
+      const r = await axios.get(
+        `https://exercisedb.p.rapidapi.com/exercises?limit=${limit}&offset=${offset}`,
+        { headers: { 'x-rapidapi-key': process.env.RAPIDAPI_KEY, 'x-rapidapi-host': 'exercisedb.p.rapidapi.com' } }
+      );
+      allExercises.push(...r.data);
+    }
+    exerciseListCache = [...new Set(allExercises.map(ex => ex.name))]; // dedupe
+    exerciseListExpiry = now + (60 * 60 * 1000);
+
+    res.json(exerciseListCache);
+  } catch (err) {
+    console.error("ExerciseDB fetch error:", err.response?.data || err.message);
+    res.status(500).json({ message: "Failed to fetch exercise list" });
+  }
+});
+
+// exercise suggestions
+app.get("/api/exercise-suggestions", async (req, res) => {
+  if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+
+  try {
+const latestGoal = await Goal.findOne({ user: req.session.userId,  goalType: 'COMPLETION', status: 'ACTIVE' }).sort({ createdAt: -1 });
+    const userCategory = latestGoal?.macroCategory || "STRENGTH";
+    const currentTime = Date.now();
+
+    // Check memory cache
+    if (suggestionsCache[userCategory] && currentTime < suggestionsCache[userCategory].expirationTime) {
+      console.log(`Serving cached suggestions for category: ${userCategory}`);
+      return res.json({
+        goal: userCategory,
+        suggestions: suggestionsCache[userCategory].data
+      });
+    }
+
+    // 2. Map your frontend categories to the correct ExerciseDB API paths
+    let targetPath = 'exercises?limit=10';
+    if (userCategory === "CARDIOVASCULAR" || userCategory === "BODY_COMPOSITION") {
+      targetPath = 'exercises/bodyPart/cardio?limit=10';
+    } else if (userCategory === "HYPERTROPHY") {
+      targetPath = 'exercises/target/pectorals?limit=10';
+    } else if (userCategory === "STRENGTH") {
+      targetPath = 'exercises/equipment/barbell?limit=10';
+    }
+
+    console.log(`Making LIVE request to ExerciseDB for category [${userCategory}]...`);
+    const response = await axios.get(`https://exercisedb.p.rapidapi.com/${targetPath}`, {
+      headers: {
+        'x-rapidapi-key': process.env.RAPIDAPI_KEY, 
+        'x-rapidapi-host': 'exercisedb.p.rapidapi.com'
+      }
+    });
+
+    const rawData = response.data;
+    const suggestions = rawData.slice(0, 5).map(exercise => {
+      const isCardio = exercise.bodyPart === "cardio";
+      let baselineWeight = 0;
+      if (userCategory === "HYPERTROPHY") baselineWeight = 25;
+      if (userCategory === "STRENGTH") baselineWeight = 45;
+
+      return {
+        name: exercise.name,
+        type: exercise.bodyPart,
+        instructions: Array.isArray(exercise.instructions) 
+          ? exercise.instructions.join(' ') 
+          : `Targets the ${exercise.target}. Equipment needed: ${exercise.equipment}.`,
+        sets: isCardio ? 1 : 4,
+        reps: isCardio ? 1 : 8, 
+        weight: exercise.equipment === "body weight" ? 0 : baselineWeight,
+        time: isCardio ? 25 : null
+      };
+    });
+
+    // Save to cache
+    suggestionsCache[userCategory] = {
+      data: suggestions,
+      expirationTime: currentTime + (5 * 60 * 1000)
+    };
+
+    res.json({
+      goal: userCategory,
+      suggestions: suggestions
+    });
+
+  } catch (error) {
+    console.error("ExerciseDB request failed:", error.response?.data || error.message);
+    res.status(500).json({ message: "Could not fetch suggestions from the internet." });
+  }
+});
+//
+
 
 server.listen(5000, () => {
   console.log("Server running on port 5000");
