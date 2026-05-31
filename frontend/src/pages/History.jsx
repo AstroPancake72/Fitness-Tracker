@@ -48,7 +48,7 @@ export default function History() {
     const matches = []
     for (const workout of workouts) {
       for (const ex of workout.exercises) {
-        const name = ex.name?.trim()
+        const name = ex.exerciseId?.name?.trim()
         if (name && name.toLowerCase().includes(query.toLowerCase()) && !seen.has(name.toLowerCase())) {
           seen.add(name.toLowerCase())
           matches.push(name)
@@ -81,7 +81,7 @@ export default function History() {
       const timestamp = new Date(workout.datetime).getTime()
 
       const matching = workout.exercises.filter(
-        ex => ex.name?.trim().toLowerCase() === selectedExercise.toLowerCase()
+        ex => ex.exerciseId?.name?.trim().toLowerCase() === selectedExercise.toLowerCase()
       )
       if (matching.length === 0) continue
 
@@ -290,7 +290,7 @@ export default function History() {
                       <hr style={{ margin: '5px 0 10px 0', border: '1px solid #38422B' }} />
                       {log.exercises.map((ex, idx) => (
                         <div key={idx} style={{ display: 'flex', textAlign: 'left', padding: '6px 0', fontSize: '14px', borderBottom: '1px dashed #eee' }}>
-                          <span style={{ flex: 2, fontWeight: '500' }}>{ex.name || 'Unnamed Exercise'}</span>
+                          <span style={{ flex: 2, fontWeight: '500' }}>{ex.exerciseId?.name || 'Unnamed Exercise'}</span>
                           <span style={{ flex: 1 }}>{ex.weight} lbs</span>
                           <span style={{ flex: 1 }}>{ex.reps} reps</span>
                           <span style={{ flex: 1 }}>{ex.sets} sets</span>

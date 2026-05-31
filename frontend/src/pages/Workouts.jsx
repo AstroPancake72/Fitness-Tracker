@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import '../App.css'
+import ExerciseAutocomplete from './ExerciseAutocomplete';
 
 export default function Workouts() {
   const [workouts, setWorkouts] = useState([])
@@ -20,7 +21,6 @@ export default function Workouts() {
   const routines = workouts.reduce((acc, current) => {
     if (!current.name) return acc;
     const existingIndex = acc.findIndex(item => item.name.trim().toLowerCase() === current.name.trim().toLowerCase());
-    
     if (existingIndex === -1) {
       acc.push(current);
     } else {
@@ -30,7 +30,7 @@ export default function Workouts() {
     }
     return acc;
   }, []);
-  
+
   function editWorkout(routine) {
     setActiveWorkout({
       isEditing: true,
@@ -38,7 +38,16 @@ export default function Workouts() {
       originalDate: routine.datetime, 
       originalName: routine.name,
       name: routine.name,
-      exercises: routine.exercises.map(ex => ({ ...ex })) 
+      exercises: routine.exercises.map(ex => ({
+        // Always normalize: pull the id string out of the populated object if needed
+        exerciseId: ex.exerciseId?._id ?? ex.exerciseId,
+        name: ex.exerciseId?.name ?? ex.name ?? '',
+        weight: ex.weight ?? 0,
+        reps: ex.reps ?? 0,
+        sets: ex.sets ?? 0,
+        time: ex.time ?? 0,
+        isOriginal: true,
+      }))
     });
   }
 
@@ -47,12 +56,13 @@ export default function Workouts() {
       isEditing: false,
       name: baseline.name,
       exercises: baseline.exercises.map(ex => ({
-        ...ex,
+        exerciseId: ex.exerciseId?._id ?? ex.exerciseId,
+        name: ex.exerciseId?.name ?? ex.name ?? '',
         weight: ex.weight || 0,
         reps: ex.reps || 0,
         sets: ex.sets || 0,
         time: ex.time || 0,
-        isOriginal: true 
+        isOriginal: true,
       }))
     });
   }
@@ -82,27 +92,37 @@ export default function Workouts() {
     setDeleteModal({ isOpen: false, targetId: null, type: null, index: null });
   }
 
-  // FIXED: Safely handles empty string values while typing numbers
   const updateExercise = (index, field, value) => {
     const updated = [...activeWorkout.exercises];
     
-    if (field === 'name') {
-      updated[index][field] = value;
+    if (field === 'exerciseId') {
+      if (value) {
+        // value is the full exercise object from the autocomplete
+        updated[index].exerciseId = value._id;
+        updated[index].name = value.name; 
+      } else {
+        updated[index].exerciseId = null;
+        updated[index].name = ""; 
+      }
+    } else if (field === 'isOriginal') {
+      updated[index].isOriginal = value; 
     } else {
-      // If the field is empty, preserve it as an empty string in state so typing doesn't lock
       updated[index][field] = value === "" ? "" : Number(value);
     }
     
     setActiveWorkout({ ...activeWorkout, exercises: updated });
     
-    if (field === 'name' && value.trim() !== "") {
+    if (field === 'name' && value && value.trim() !== "") {
       setShowExerciseWarning(false);
     }
   }
 
   async function saveWorkout() {
-    const allValidExercises = activeWorkout.exercises.filter(ex => ex.name.trim() !== "");
-    
+    const allValidExercises = activeWorkout.exercises.filter(ex => {
+      const nameToCheck = ex.name ?? '';
+      return nameToCheck.trim() !== '' && ex.exerciseId;
+    });
+
     if (allValidExercises.length === 0) {
       setShowExerciseWarning(true);
       return;
@@ -116,23 +136,24 @@ export default function Workouts() {
     const workoutDate = activeWorkout.isEditing ? activeWorkout.originalDate : new Date();
 
     try {
-      // Maps across exercises and coerces any temporary "" state strings into structural 0s for MongoDB storage
-      const cleanedExercises = allValidExercises.map(({ isOriginal, ...rest }) => ({
+      const cleanedExercises = allValidExercises.map(({ isOriginal, name, ...rest }) => ({
         ...rest,
+        // Ensure exerciseId is always just the ID string, never a populated object
+        exerciseId: rest.exerciseId?._id ?? rest.exerciseId,
         weight: rest.weight === "" ? 0 : rest.weight,
-        reps: rest.reps === "" ? 0 : rest.reps,
-        sets: rest.sets === "" ? 0 : rest.sets,
-        time: rest.time === "" ? 0 : rest.time,
+        reps:   rest.reps   === "" ? 0 : rest.reps,
+        sets:   rest.sets   === "" ? 0 : rest.sets,
+        time:   rest.time   === "" ? 0 : rest.time,
       }));
 
       const response = await fetch(url, {
-        method: method,
+        method,
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
           name: activeWorkout.name,
           datetime: workoutDate, 
-          exercises: cleanedExercises 
+          exercises: cleanedExercises,
         }),
       });
 
@@ -153,6 +174,9 @@ export default function Workouts() {
         
         setActiveWorkout(null);
         setShowExerciseWarning(false); 
+      } else {
+        const err = await response.json();
+        console.error("Save rejected:", err.message);
       }
     } catch (err) {
       console.error("Save error:", err);
@@ -193,7 +217,7 @@ export default function Workouts() {
                     setNewRoutineName(e.target.value);
                     if (e.target.value.trim()) setShowNameWarning(false); 
                   }} 
-                  style={{ marginTop: '-5px' , marginBottom: '15px'}} 
+                  style={{ marginTop: '-5px', marginBottom: '15px'}} 
                 />
                 <button 
                   className="counter" 
@@ -202,8 +226,10 @@ export default function Workouts() {
                       setShowNameWarning(true);
                       return;
                     }
-                    
-                    setActiveWorkout({name: newRoutineName, exercises: [{name: "", weight: 0, reps: 0, sets: 0, time: 0}]}); 
+                    setActiveWorkout({
+                      name: newRoutineName,
+                      exercises: [{ exerciseId: null, name: "", weight: 0, reps: 0, sets: 0, time: 0 }]
+                    }); 
                     setShowAddRoutine(false); 
                     setShowNameWarning(false);
                     setNewRoutineName("");
@@ -259,75 +285,66 @@ export default function Workouts() {
           </div>
           <hr style={{ border: '1px solid #38422B', marginBottom: '15px', marginTop: '0' }} />
 
-          {activeWorkout.exercises.map((ex, i) => {
-            const isFieldDisabled = !activeWorkout.isEditing && ex.isOriginal;
-
-            return (
-              <div key={i} style={{...exerciseRowStyle, opacity: isFieldDisabled ? 0.65 : 1}}>
-                <input 
-                  value={ex.name} 
-                  onChange={(e) => updateExercise(i, 'name', e.target.value)} 
-                  style={{flex: 2, border: 'none', background: 'transparent', fontWeight: isFieldDisabled ? 'bold' : 'normal'}} 
-                  placeholder="Exercise..."
-                  disabled={isFieldDisabled}
-                />
-                
-                {/* Fixed Inputs: value maps cleanly to empty strings for painless typing updates */}
-                <input 
-                  type="number" 
-                  value={ex.weight === 0 ? "" : ex.weight} 
-                  placeholder="0"
-                  onChange={(e) => updateExercise(i, 'weight', e.target.value)} 
-                  style={{flex: 1, width: '40px'}} 
-                  disabled={isFieldDisabled} 
-                  onFocus={(e) => e.target.select()} 
-                />
-
-                <input 
-                  type="number" 
-                  value={ex.reps === 0 ? "" : ex.reps} 
-                  placeholder="0"
-                  onChange={(e) => updateExercise(i, 'reps', e.target.value)} 
-                  style={{flex: 1, width: '40px'}} 
-                  disabled={isFieldDisabled} 
-                  onFocus={(e) => e.target.select()}
-                />
-
-                <input 
-                  type="number" 
-                  value={ex.sets === 0 ? "" : ex.sets} 
-                  placeholder="0"
-                  onChange={(e) => updateExercise(i, 'sets', e.target.value)} 
-                  style={{flex: 1, width: '40px'}} 
-                  disabled={isFieldDisabled} 
-                  onFocus={(e) => e.target.select()}
-                />
-
-                <input 
-                  type="number" 
-                  value={ex.time === 0 ? "" : ex.time} 
-                  placeholder="0"
-                  onChange={(e) => updateExercise(i, 'time', e.target.value)} 
-                  style={{flex: 1, width: '40px'}} 
-                  disabled={isFieldDisabled} 
-                  onFocus={(e) => e.target.select()}
-                />
-                
-                {!isFieldDisabled ? (
-                  <button onClick={() => openDeleteModal('exercise', i)} style={deleteBtnStyle}>✕</button>
+          {activeWorkout.exercises.map((ex, i) => (
+            <div key={i} style={exerciseRowStyle}>
+              <div style={{ flex: 2 }}>
+                {ex.isOriginal ? (
+                  <div 
+                    onClick={() => updateExercise(i, 'isOriginal', false)}
+                    style={{ 
+                      padding: '10px', 
+                      background: 'white',
+                      borderRadius: '8px', 
+                      border: '1px solid #CCD5C0', 
+                      color: '#38422B',
+                      boxSizing: 'border-box',
+                      height: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      cursor: 'pointer',
+                    }}
+                    title="Click to change exercise"
+                  >
+                    <span>{ex.name || "Unknown Exercise"}</span>
+                    <span style={{ fontSize: '12px', opacity: 0.5 }}>✏️</span>
+                  </div>
                 ) : (
-                  <span style={{width: '30px'}}></span>
+                  <ExerciseAutocomplete 
+                    initialName={ex.name || ""}
+                    onSelect={(selected) => updateExercise(i, 'exerciseId', selected)} 
+                  />
                 )}
               </div>
-            );
-          })}
 
-          {!activeWorkout.isEditing && (
-            <button className="counter" style={{width: '100%', background: 'transparent', color: '#38422B', border: '1px dashed #38422B', marginBottom: '20px'}} 
-                    onClick={() => setActiveWorkout({...activeWorkout, exercises: [...activeWorkout.exercises, {name: "", weight: 0, reps: 0, sets: 0, time: 0}]})}>
-              + Add Exercise
-            </button>
-          )}
+              <input type="number" value={ex.weight === 0 ? "" : ex.weight} placeholder="0"
+                onChange={(e) => updateExercise(i, 'weight', e.target.value)} 
+                style={{flex: 1, width: '40px'}} onFocus={(e) => e.target.select()} />
+              <input type="number" value={ex.reps === 0 ? "" : ex.reps} placeholder="0"
+                onChange={(e) => updateExercise(i, 'reps', e.target.value)} 
+                style={{flex: 1, width: '40px'}} onFocus={(e) => e.target.select()} />
+              <input type="number" value={ex.sets === 0 ? "" : ex.sets} placeholder="0"
+                onChange={(e) => updateExercise(i, 'sets', e.target.value)} 
+                style={{flex: 1, width: '40px'}} onFocus={(e) => e.target.select()} />
+              <input type="number" value={ex.time === 0 ? "" : ex.time} placeholder="0"
+                onChange={(e) => updateExercise(i, 'time', e.target.value)} 
+                style={{flex: 1, width: '40px'}} onFocus={(e) => e.target.select()} />
+              
+              <button onClick={() => openDeleteModal('exercise', i)} style={deleteBtnStyle}>✕</button>
+            </div>
+          ))}
+
+          {/* Add Exercise — available in both start and edit modes */}
+          <button
+            className="counter"
+            style={{width: '100%', background: 'transparent', color: '#38422B', border: '1px dashed #38422B', marginBottom: '20px'}} 
+            onClick={() => setActiveWorkout({
+              ...activeWorkout,
+              exercises: [...activeWorkout.exercises, { exerciseId: null, name: "", weight: 0, reps: 0, sets: 0, time: 0 }]
+            })}
+          >
+            + Add Exercise
+          </button>
 
           {showExerciseWarning && (
             <p style={{ color: '#8B0000', fontSize: '14px', margin: '0 0 15px 0', textAlign: 'center', fontWeight: 'bold' }}>
