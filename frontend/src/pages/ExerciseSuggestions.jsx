@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
+import '../App.css'
 
-export default function ExerciseSuggestions({ onSelectSuggestedExercise }) {
+export default function ExerciseSuggestions({ activeWorkout, setActiveWorkout }) {
   const [goalTypeKey, setGoalTypeKey] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [successBanner, setSuccessBanner] = useState({ visible: false, exerciseName: "" });
+  const [successBanner, setSuccessBanner] = useState({ visible: false, message: "" });
 
   const readableGoalNames = {
     STRENGTH: "Strength & Power",
@@ -16,14 +17,13 @@ export default function ExerciseSuggestions({ onSelectSuggestedExercise }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    
+
     async function fetchSuggestions() {
       try {
         const response = await fetch("http://localhost:5000/api/exercise-suggestions", {
           credentials: "include",
-          signal: controller.signal 
+          signal: controller.signal
         });
-        
         if (response.ok) {
           const data = await response.json();
           setGoalTypeKey(data.goal || "");
@@ -41,17 +41,71 @@ export default function ExerciseSuggestions({ onSelectSuggestedExercise }) {
     }
 
     fetchSuggestions();
-    return () => controller.abort(); 
+    return () => controller.abort();
   }, []);
 
-  const handleAddClick = (item) => {
-    onSelectSuggestedExercise(item);
-    
-    setSuccessBanner({ visible: true, exerciseName: item.name });
-    
-    setTimeout(() => {
-      setSuccessBanner({ visible: false, exerciseName: "" });
-    }, 3000);
+  const handleAddClick = async (item) => {
+    const newExercise = {
+      name: item.name,
+      weight: item.weight || 0,
+      reps: item.reps || 0,
+      sets: item.sets || 0,
+      time: item.time || 0,
+      instructions: item.instructions || "",
+      isOriginal: false
+    };
+
+    if (activeWorkout) {
+      // Scenario A: session already open → append to it
+      setActiveWorkout({
+        ...activeWorkout,
+        exercises: [...activeWorkout.exercises, newExercise]
+      });
+      setSuccessBanner({
+        visible: true,
+        message: `Added "${item.name}" to your active session!`
+      });
+    } else {
+      // Scenario B: no session → log it AND save as a reusable template
+      try {
+        const sessionName = `${readableGoalNames[goalTypeKey] || "Suggested"} Session`;
+
+        // Log as a real workout history entry
+        await fetch("http://localhost:5000/api/workouts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            name: sessionName,
+            datetime: new Date(),
+            isTemplate: false,
+            exercises: [newExercise]
+          })
+        });
+
+        // Also save as a reusable template in the Workouts tab
+        await fetch("http://localhost:5000/api/workouts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            name: `Suggested: ${item.name}`,
+            datetime: new Date(),
+            isTemplate: true,
+            exercises: [newExercise]
+          })
+        });
+
+        setSuccessBanner({
+          visible: true,
+          message: `Logged "${item.name}" to history and saved as a template!`
+        });
+      } catch (err) {
+        console.error("Failed to log exercise:", err);
+      }
+    }
+
+    setTimeout(() => setSuccessBanner({ visible: false, message: "" }), 3000);
   };
 
   if (loading) {
@@ -65,21 +119,21 @@ export default function ExerciseSuggestions({ onSelectSuggestedExercise }) {
   return (
     <div style={{ padding: "20px", maxWidth: "600px", margin: "0 auto", color: "#38422B" }}>
       <h2>Personalized Suggestions</h2>
-      
+
       {successBanner.visible && (
-        <div style={{ 
-          background: '#E1EAD6', 
-          color: '#38422B', 
-          padding: '15px', 
-          borderRadius: '8px', 
+        <div style={{
+          background: '#E1EAD6',
+          color: '#38422B',
+          padding: '15px',
+          borderRadius: '8px',
           borderLeft: '5px solid #38422B',
-          marginBottom: '20px', 
-          textAlign: 'center', 
+          marginBottom: '20px',
+          textAlign: 'center',
           fontWeight: 'bold',
           fontSize: '15px',
           boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
         }}>
-          Successfully added "{successBanner.exerciseName}" to your Workouts log!
+          ✓ {successBanner.message}
         </div>
       )}
 
@@ -99,13 +153,13 @@ export default function ExerciseSuggestions({ onSelectSuggestedExercise }) {
                   {item.instructions ? item.instructions.substring(0, 120) + "..." : "No instructions available."}
                 </p>
                 <span style={{ fontSize: "13px", color: "#38422B", fontWeight: 'bold' }}>
-                  {item.time || item.type === "cardio" 
-                    ? `Duration: ${item.time || 25} mins` 
+                  {item.time || item.type === "cardio"
+                    ? `Duration: ${item.time || 25} mins`
                     : `Target: ${item.sets || 4} sets x ${item.reps || 10} reps @ ${item.weight || 0} lbs`}
                 </span>
               </div>
-              <button 
-                onClick={() => handleAddClick(item)} 
+              <button
+                onClick={() => handleAddClick(item)}
                 className="counter"
                 style={{ padding: "8px 12px", cursor: "pointer", whiteSpace: 'nowrap' }}
               >

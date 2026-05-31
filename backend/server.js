@@ -103,34 +103,22 @@ const profileSchema = new mongoose.Schema(
 );
 profileSchema.index({ "connections.userId": 1 });
 
-const goalSchema = new mongoose.Schema(
-  {
-    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    macroCategory: { 
-      type: String, 
-      enum: ['STRENGTH', 'HYPERTROPHY', 'CARDIOVASCULAR', 'BODY_COMPOSITION', 'CONSISTENCY'], 
-      required: true 
-    },
-    goalType: { 
-      type: String, 
-      // Updated to strictly line up with both your frontend form strings
-      enum: ['1RM', 'ENDURANCE', 'BODYWEIGHT', 'VOLUME', 'FREQUENCY', 'COMPLETION'], 
-      required: true 
-    },
-    // ADD THIS STATUS FIELD HERE:
-    status: {
-      type: String,
-      enum: ['ACTIVE', 'COMPLETED'],
-      default: 'ACTIVE',
-      required: true
-    },
-    exerciseName: { type: String, default: "" }, 
-    startingValue: { type: Number, required: true },
-    targetValue: { type: Number, required: true },
-    deadline: { type: Date, default: null }
-  },
-  { timestamps: true }
-);
+const goalSchema = new mongoose.Schema({
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  goalType: { type: String, enum: ['Strength', 'Bodyweight', 'Consistency', 'Volume', 'TARGET', 'GOAL', 'COMPLETION'], required: true },
+  macroCategory: { type: String, default: null },
+  exerciseName: { type: String, trim: true, default: "" },
+  targetValue: { type: Number, default: 0 },
+  startingValue: { type: Number, default: 0 },
+  deadline: { type: Date },
+  status: { type: String, enum: ['Active', 'Completed', 'Abandoned'], default: 'Active' },
+  microTarget: {
+    exerciseName: { type: String, default: "" },
+    targetMetric: { type: Number },
+    metricUnit: { type: String },
+    currentValue: { type: Number, default: 0 },
+  }
+}, { timestamps: true });
 const Goal = mongoose.model("Goal", goalSchema);
 const messageSchema = new mongoose.Schema({
   senderId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
@@ -768,46 +756,79 @@ app.get("/api/goals", async (req, res) => {
 //post
 app.post("/api/goals/create", async (req, res) => {
   if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
-
   try {
-    const { macroCategory, goalType, exerciseName, startingValue, targetValue, deadline } = req.body;
+    const { macroCategory, goalType, exerciseName, startingValue, targetValue, deadline, microTarget } = req.body;
 
-    // Only strictly require the fundamental classifiers
-    if (!macroCategory || !goalType) {
-      return res.status(400).json({ message: "Missing required tracking parameters." });
-    }
+    if (!goalType) return res.status(400).json({ message: "Missing required tracking parameters." });
 
-    // Prepare the document with clean defaults so validation passes
     const newGoal = new Goal({
       user: req.session.userId,
-      macroCategory,
-      // Map 'GOAL' form submissions to 'COMPLETION' to pass Mongoose enum checks
-      goalType: goalType === 'GOAL' ? 'COMPLETION' : goalType,
-      status: 'ACTIVE',
-      exerciseName: exerciseName || "",
-      startingValue: startingValue !== undefined ? Number(startingValue) : 0,
-      targetValue: targetValue !== undefined ? Number(targetValue) : 1,
-      deadline: deadline ? new Date(deadline) : null
+      goalType: goalType === 'GOAL' ? 'GOAL' : goalType,  // keep as GOAL, it's in enum now
+      macroCategory: macroCategory || null,
+      exerciseName: microTarget?.exerciseName || exerciseName || "",
+      startingValue: 0,
+      targetValue: microTarget?.targetMetric ? Number(microTarget.targetMetric) : (targetValue ? Number(targetValue) : 1),
+      status: 'Active',
+      deadline: deadline ? new Date(deadline) : null,
+      microTarget: microTarget || null,
     });
 
     await newGoal.save();
     res.status(201).json(newGoal);
   } catch (err) {
-    console.error("Error creating goal:", err);
-    res.status(500).json({ message: "Failed to persist goal configuration." });
+    console.error("Save error:", err);
+    res.status(500).json({ message: "Failed to save goal" });
   }
 });
 //
 let suggestionsCache = {};
+let exerciseListCache = null;
+let exerciseListExpiry = 0;
 
+app.get("/api/exercises", async (req, res) => {
+  if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+
+  try {
+    const now = Date.now();
+    if (exerciseListCache && now < exerciseListExpiry) {
+      return res.json(exerciseListCache);
+    }
+
+    // Fetch in batches of 100 across multiple offsets
+    const limit = 100;
+    const totalToFetch = 1300;
+    const requests = [];
+
+    const allExercises = [];
+    for (let offset = 0; offset < totalToFetch; offset += limit) {
+      const r = await axios.get(
+        `https://exercisedb.p.rapidapi.com/exercises?limit=${limit}&offset=${offset}`,
+        { headers: { 'x-rapidapi-key': process.env.RAPIDAPI_KEY, 'x-rapidapi-host': 'exercisedb.p.rapidapi.com' } }
+      );
+      allExercises.push(...r.data);
+    }
+    exerciseListCache = [...new Set(allExercises.map(ex => ex.name))]; // dedupe
+    exerciseListExpiry = now + (60 * 60 * 1000);
+
+    res.json(exerciseListCache);
+  } catch (err) {
+    console.error("ExerciseDB fetch error:", err.response?.data || err.message);
+    res.status(500).json({ message: "Failed to fetch exercise list" });
+  }
+});
 
 // exercise suggestions
 app.get("/api/exercise-suggestions", async (req, res) => {
   if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
 
   try {
-const latestGoal = await Goal.findOne({ user: req.session.userId,  goalType: 'COMPLETION', status: 'ACTIVE' }).sort({ createdAt: -1 });
-    const userCategory = latestGoal?.macroCategory || "STRENGTH";
+  const latestGoal = await Goal.findOne({ 
+    user: req.session.userId,
+    goalType: { $in: ['COMPLETION', 'GOAL', 'Strength', 'Bodyweight', 'Consistency', 'Volume'] },
+    status: { $in: ['Active', 'ACTIVE'] }
+  }).sort({ createdAt: -1 });
+
+  const userCategory = latestGoal?.macroCategory || "STRENGTH";
     const currentTime = Date.now();
 
     // Check memory cache
@@ -874,6 +895,37 @@ const latestGoal = await Goal.findOne({ user: req.session.userId,  goalType: 'CO
   }
 });
 //
+
+app.patch("/api/goals/:id", async (req, res) => {
+  if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+  try {
+    const { status } = req.body;
+    const updated = await Goal.findOneAndUpdate(
+      { _id: req.params.id, user: req.session.userId },
+      { status },
+      { new: true }
+    );
+    if (!updated) return res.status(404).json({ message: "Goal not found" });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to update goal" });
+  }
+});
+
+app.delete("/api/goals/:id", async (req, res) => {
+  if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
+  try {
+    const deletedGoal = await Goal.findOneAndDelete({
+      _id: req.params.id,
+      user: req.session.userId
+    });
+    if (!deletedGoal) return res.status(404).json({ message: "Goal not found" });
+    res.status(200).json({ message: "Goal deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Error deleting goal" });
+  }
+});
+
 server.listen(5000, () => {
   console.log("Server running on port 5000");
 });

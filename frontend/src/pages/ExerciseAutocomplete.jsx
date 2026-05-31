@@ -1,103 +1,106 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 
-export default function ExerciseAutocomplete({ onSelect, initialName }) {
-  const [query, setQuery] = useState(initialName || '');
-  const [results, setResults] = useState([]);
-  const [isOpen, setIsOpen] = useState(false);
+export default function ExerciseAutocompleteInput({ value, onChange, masterList = [], style = {}, placeholder = "Exercise..." }) {
+  const [dropdown, setDropdown] = useState([]);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
+  const inputRef = useRef(null);
+  const containerRef = useRef(null);
 
-  // Search logic triggered whenever the user types
   useEffect(() => {
-    if (query.length > 1) {
-      const fetchExercises = async () => {
-        try {
-          const response = await fetch(`http://localhost:5000/api/exercises/search?q=${query}`);
-          if (response.ok) {
-            const data = await response.json();
-            setResults(data);
-            setIsOpen(true);
-          }
-        } catch (err) {
-          console.error("Search failed", err);
-        }
-      };
-      // Simple debounce to prevent flooding the API
-      const timeoutId = setTimeout(fetchExercises, 300);
-      return () => clearTimeout(timeoutId);
-    } else {
-      setResults([]);
-      setIsOpen(false);
+    function handleClickOutside(e) {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setDropdown([]);
+      }
     }
-  }, [query]);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-  const handleSelect = (exercise) => {
-    setQuery(exercise.name);
-    setIsOpen(false);
-    // Pass the whole object (including _id) to the parent
-    onSelect(exercise); 
-  };
+  function handleChange(e) {
+    const query = e.target.value;
+    onChange(query);
+    if (!query.trim() || masterList.length === 0) {
+      setDropdown([]);
+      return;
+    }
+    const matches = masterList
+      .filter(name => name.toLowerCase().includes(query.toLowerCase()))
+      .slice(0, 8);
+
+    // Calculate position for the portal dropdown
+    if (inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect();
+      setDropdownPos({
+        top: rect.bottom + window.scrollY + 6,
+        left: rect.left + window.scrollX,
+        width: Math.max(rect.width, 280)
+      });
+    }
+
+    setDropdown(matches);
+  }
+
+  function handleSelect(name) {
+    onChange(name);
+    setDropdown([]);
+  }
 
   return (
-    <div style={{ position: 'relative', width: '100%' }}>
+    <div ref={containerRef} style={{ position: "relative", flex: style.flex ?? 2, ...style }}>
       <input
-        type="text"
-        autoFocus
-        placeholder="Search for an exercise..."
-        value={query}
-        onChange={(e) => {
-            setQuery(e.target.value);
-            if (e.target.value === "") {
-                onSelect(null); // Clear the ID in the parent state
-            }
-            }}
-        style={{ ...inputStyle, width: '100%' }}
+        ref={inputRef}
+        value={value}
+        onChange={handleChange}
+        placeholder={placeholder}
+        style={{
+          width: "100%",
+          border: "none",
+          background: "transparent",
+          outline: "none",
+          fontSize: "inherit",
+          fontFamily: "inherit",
+          color: "inherit",
+          padding: 0,
+        }}
       />
-      
-      {isOpen && results.length > 0 && (
-        <ul style={dropdownStyle}>
-          {results.map((ex) => (
-            <li 
-              key={ex._id} 
-              onClick={() => handleSelect(ex)}
-              style={itemStyle}
+      {dropdown.length > 0 && createPortal(
+        <div style={{
+          position: "absolute",
+          top: dropdownPos.top,
+          left: dropdownPos.left,
+          width: dropdownPos.width,
+          background: "#F5F1E8",
+          border: "1px solid #38422B",
+          borderRadius: "10px",
+          zIndex: 9999,
+          overflow: "hidden",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
+        }}>
+          {dropdown.map((name, i) => (
+            <div
+              key={i}
+              onMouseDown={() => handleSelect(name)}
+              style={{
+                padding: "10px 14px",
+                cursor: "pointer",
+                fontSize: "13px",
+                color: "#38422B",
+                textTransform: "capitalize",
+                borderBottom: i < dropdown.length - 1 ? "1px solid #CCD5C0" : "none",
+                background: "#F5F1E8",
+                lineHeight: "1.4",
+                wordBreak: "break-word",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "#CCD5C0"}
+              onMouseLeave={e => e.currentTarget.style.background = "#F5F1E8"}
             >
-              {ex.name}
-            </li>
+              {name}
+            </div>
           ))}
-        </ul>
+        </div>,
+        document.body
       )}
     </div>
   );
 }
-
-// --- STYLES ---
-const inputStyle = {
-  width: '100%',
-  padding: '10px',
-  borderRadius: '8px',
-  border: '1px solid #38422B',
-  background: '#F5F1E8',
-  boxSizing: 'border-box'
-};
-
-const dropdownStyle = {
-  position: 'absolute',
-  top: '100%',
-  left: 0,
-  width: '100%',
-  background: '#F5F1E8',
-  border: '1px solid #38422B',
-  borderRadius: '8px',
-  listStyle: 'none',
-  padding: 0,
-  margin: '5px 0 0 0',
-  zIndex: 1000,
-  maxHeight: '200px',
-  overflowY: 'auto'
-};
-
-const itemStyle = {
-  padding: '10px',
-  cursor: 'pointer',
-  borderBottom: '1px solid #CCD5C0',
-  color: '#38422B'
-};

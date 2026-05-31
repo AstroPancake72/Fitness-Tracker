@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import '../App.css'
+import ExerciseAutocomplete from "./ExerciseAutocomplete";
 
-export default function Workouts() {
+export default function Workouts({ activeWorkout, setActiveWorkout, masterExerciseList = [] }) {
   const [workouts, setWorkouts] = useState([])
-  const [activeWorkout, setActiveWorkout] = useState(null)
   const [newRoutineName, setNewRoutineName] = useState("")
   const [showAddRoutine, setShowAddRoutine] = useState(false)
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, targetId: null, type: null, index: null })
@@ -62,20 +62,50 @@ export default function Workouts() {
   }
 
   function startWorkout(baseline) {
-    setActiveWorkout({
-      isEditing: false,
-      templateId: baseline._id, 
-      name: baseline.name,
-      exercises: baseline.exercises.map(ex => ({
-        ...ex,
-        weight: ex.weight || 0,
-        reps: ex.reps || 0,
-        sets: ex.sets || 0,
-        time: ex.time || 0,
-        instructions: ex.instructions || "",
-        isOriginal: true 
-      }))
-    });
+    const newExercises = baseline.exercises.map(ex => ({
+      ...ex,
+      weight: ex.weight || 0,
+      reps: ex.reps || 0,
+      sets: ex.sets || 0,
+      time: ex.time || 0,
+      instructions: ex.instructions || "",
+      isOriginal: true
+    }));
+
+    // Scenario A: no active workout → just start it
+    if (!activeWorkout) {
+      setActiveWorkout({
+        isEditing: false,
+        templateId: baseline._id,
+        name: baseline.name,
+        exercises: newExercises
+      });
+      return;
+    }
+
+    // Scenario B: workout already in progress → ask user
+    const choice = window.confirm(
+      `You already have "${activeWorkout.name}" in progress.\n\nClick OK to append "${baseline.name}" to your current session.\nClick Cancel to discard your current session and start fresh.`
+    );
+
+    if (choice) {
+      // Append template exercises to existing session
+      setActiveWorkout({
+        ...activeWorkout,
+        exercises: [
+          ...activeWorkout.exercises,
+          ...newExercises
+        ]
+      });
+    } else {
+      // Discard and start fresh
+      setActiveWorkout({
+        isEditing: false,
+        templateId: baseline._id,
+        name: baseline.name,
+        exercises: newExercises
+      });
+    }
   }
 
   const openDeleteModal = (type, idOrIndex) => {
@@ -162,7 +192,7 @@ export default function Workouts() {
   }
 
   return (
-    <div className="login-container" style={{maxWidth: '900px'}}>
+    <div className="login-container" style={{maxWidth: '900px', overflow: 'visible'}}>
       {deleteModal.isOpen && (
         <div style={modalOverlayStyle}>
           <div style={modalBoxStyle}>
@@ -187,25 +217,25 @@ export default function Workouts() {
           ) : (
             <div>
               <div style={{ marginTop: '20px', marginBottom: '10px', display: 'flex', gap: '20px' }}>
-                <input 
-                  className="login-input-style" 
-                  placeholder="Routine Name..." 
-                  value={newRoutineName} 
+                <input
+                  className="login-input-style"
+                  placeholder="Routine Name..."
+                  value={newRoutineName}
                   onChange={(e) => {
                     setNewRoutineName(e.target.value);
-                    if (e.target.value.trim()) setShowNameWarning(false); 
-                  }} 
-                  style={{ marginTop: '-5px' , marginBottom: '15px'}} 
+                    if (e.target.value.trim()) setShowNameWarning(false);
+                  }}
+                  style={{ marginTop: '-5px', marginBottom: '15px' }}
                 />
-                <button 
-                  className="counter" 
-                  onClick={() => { 
+                <button
+                  className="counter"
+                  onClick={() => {
                     if (!newRoutineName.trim()) {
                       setShowNameWarning(true);
                       return;
                     }
-                    setActiveWorkout({isEditing: true, name: newRoutineName, exercises: [{name: "", weight: 0, reps: 0, sets: 0, time: 0}]}); 
-                    setShowAddRoutine(false); 
+                    setActiveWorkout({isEditing: true, name: newRoutineName, exercises: [{name: "", weight: 0, reps: 0, sets: 0, time: 0}]});
+                    setShowAddRoutine(false);
                     setNewRoutineName("");
                   }}
                 >
@@ -220,7 +250,7 @@ export default function Workouts() {
               <div style={{textAlign: 'left'}}>
                 <div style={{fontWeight: 'bold', fontSize: '18px', textTransform: 'capitalize'}}>{r.name}</div>
                 <div style={{fontSize: '12px', color: '#666'}}>
-                  {r.name.startsWith("Suggested:") ? "Recommended" : "Custom "}
+                  {r.name.startsWith("Suggested:") ? "Recommended" : "Custom"}
                 </div>
               </div>
               <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
@@ -248,7 +278,7 @@ export default function Workouts() {
               boxSizing: 'border-box',
               width: '100%'
             }}>
-              <strong style={{ fontSize: '14px', display: 'block', marginBottom: '4px' }}> Exercise Guide Instructions:</strong>
+              <strong style={{ fontSize: '14px', display: 'block', marginBottom: '4px' }}>Exercise Guide Instructions:</strong>
               {activeWorkout.exercises.map((ex, idx) => ex.instructions ? (
                 <div key={idx} style={{ margin: '4px 0' }}>
                   <strong>{ex.name || "Exercise"}:</strong> {ex.instructions}
@@ -258,20 +288,18 @@ export default function Workouts() {
           )}
 
           <div style={sessionBoxStyle}>
-            {activeWorkout.isEditing && (
-              <div style={{ marginBottom: '15px' }}>
-                <input 
-                  className="login-input-style" 
-                  value={activeWorkout.name} 
-                  onChange={(e) => setActiveWorkout({...activeWorkout, name: e.target.value})} 
-                  placeholder="Routine Name"
-                  style={{ width: '100%', boxSizing: 'border-box' }}
-                />
-              </div>
-            )}
+            <div style={{ marginBottom: '15px' }}>
+              <input
+                className="login-input-style"
+                value={activeWorkout.name}
+                onChange={(e) => setActiveWorkout({...activeWorkout, name: e.target.value})}
+                placeholder="Session Name"
+                style={{ width: '100%', boxSizing: 'border-box' }}
+              />
+            </div>
 
             <div style={{display: 'flex', fontWeight: 'bold', padding: '10px 10px 5px 10px', textAlign: 'left', fontSize: '14px'}}>
-              <span style={{flex: 2}}>name</span>
+              <span style={{flex: 3}}>name</span>
               <span style={{flex: 1}}>weight</span>
               <span style={{flex: 1}}>reps</span>
               <span style={{flex: 1}}>sets</span>
@@ -281,24 +309,44 @@ export default function Workouts() {
             <hr style={{ border: '1px solid #38422B', marginBottom: '10px', marginTop: '0' }} />
 
             {activeWorkout.exercises.map((ex, i) => {
-              const isFieldDisabled = !activeWorkout.isEditing && ex.isOriginal;
+              const isFieldDisabled = !activeWorkout.isEditing && ex.isOriginal && ex.name !== "";
 
               return (
                 <div key={i} style={{ marginBottom: '12px' }}>
-                  <div style={{...exerciseRowStyle, opacity: isFieldDisabled ? 0.85 : 1, marginBottom: '0'}}>
-                    <input 
-                      value={ex.name} 
-                      onChange={(e) => updateExercise(i, 'name', e.target.value)} 
-                      style={{flex: 2, border: 'none', background: 'transparent', fontWeight: isFieldDisabled ? 'bold' : 'normal'}} 
-                      placeholder="Exercise..."
-                      disabled={isFieldDisabled}
-                    />
-                    
-                    <input type="number" value={ex.weight === 0 ? "" : ex.weight} placeholder="0" onChange={(e) => updateExercise(i, 'weight', e.target.value)} style={{flex: 1, width: '40px'}} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
-                    <input type="number" value={ex.reps === 0 ? "" : ex.reps} placeholder="0" onChange={(e) => updateExercise(i, 'reps', e.target.value)} style={{flex: 1, width: '40px'}} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
-                    <input type="number" value={ex.sets === 0 ? "" : ex.sets} placeholder="0" onChange={(e) => updateExercise(i, 'sets', e.target.value)} style={{flex: 1, width: '40px'}} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
-                    <input type="number" value={ex.time === 0 ? "" : ex.time} placeholder="0" onChange={(e) => updateExercise(i, 'time', e.target.value)} style={{flex: 1, width: '40px'}} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
-                    
+                  <div style={{
+                    ...exerciseRowStyle,
+                    opacity: isFieldDisabled ? 0.85 : 1,
+                    marginBottom: '0',
+                    padding: isFieldDisabled ? '8px 10px' : '10px',
+                  }}>
+                    {isFieldDisabled ? (
+                      <span style={{
+                        flex: 3,
+                        fontWeight: 'bold',
+                        fontSize: '14px',
+                        textTransform: 'capitalize',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        minWidth: 0
+                      }}>
+                        {ex.name}
+                      </span>
+                    ) : (
+                      <ExerciseAutocomplete
+                        value={ex.name}
+                        style={{ flex: 3 }}
+                        onChange={(val) => updateExercise(i, 'name', val)}
+                        masterList={masterExerciseList}
+                        placeholder="Exercise..."
+                      />
+                    )}
+
+                    <input type="number" value={ex.weight === 0 ? "" : ex.weight} placeholder="0" onChange={(e) => updateExercise(i, 'weight', e.target.value)} style={{flex: 1, maxWidth: '90px'}} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
+                    <input type="number" value={ex.reps === 0 ? "" : ex.reps} placeholder="0" onChange={(e) => updateExercise(i, 'reps', e.target.value)} style={{flex: 1, maxWidth: '90px'}} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
+                    <input type="number" value={ex.sets === 0 ? "" : ex.sets} placeholder="0" onChange={(e) => updateExercise(i, 'sets', e.target.value)} style={{flex: 1, maxWidth: '90px'}} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
+                    <input type="number" value={ex.time === 0 ? "" : ex.time} placeholder="0" onChange={(e) => updateExercise(i, 'time', e.target.value)} style={{flex: 1, maxWidth: '90px'}} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
+
                     {!isFieldDisabled ? (
                       <button onClick={() => openDeleteModal('exercise', i)} style={deleteBtnStyle}>✕</button>
                     ) : (
@@ -309,12 +357,10 @@ export default function Workouts() {
               );
             })}
 
-            {activeWorkout.isEditing && (
-              <button className="counter" style={{width: '100%', background: 'transparent', color: '#38422B', border: '1px dashed #38422B', marginBottom: '20px'} } 
-                      onClick={() => setActiveWorkout({...activeWorkout, exercises: [...activeWorkout.exercises, {name: "", weight: 0, reps: 0, sets: 0, time: 0, isOriginal: false}]})}>
-                + Add Exercise to Template
-              </button>
-            )}
+            <button className="counter" style={{width: '100%', background: 'transparent', color: '#38422B', border: '1px dashed #38422B', marginBottom: '20px'}}
+              onClick={() => setActiveWorkout({...activeWorkout, exercises: [...activeWorkout.exercises, {name: "", weight: 0, reps: 0, sets: 0, time: 0, isOriginal: false}]})}>
+              {activeWorkout.isEditing ? "+ Add Exercise to Template" : "+ Add Exercise to Session"}
+            </button>
 
             <div style={{display: 'flex', gap: '10px', marginTop: '20px'}}>
               <button className="counter" style={{background: '#8B0000', flex: 1}} onClick={() => setActiveWorkout(null)}>Exit</button>
@@ -330,8 +376,8 @@ export default function Workouts() {
 }
 
 const itemStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F5F1E8', padding: '15px', borderRadius: '15px', marginBottom: '10px', border: '1px solid #38422B' }
-const sessionBoxStyle = { width: '100%', background: '#F5F1E8', padding: '20px', borderRadius: '20px', border: '2px solid #38422B' }
-const exerciseRowStyle = { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', background: 'white', padding: '10px', borderRadius: '8px' }
+const sessionBoxStyle = { width: '100%', background: '#F5F1E8', padding: '20px', borderRadius: '20px', border: '2px solid #38422B', overflow: 'visible' }
+const exerciseRowStyle = { display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px', background: 'white', padding: '10px', borderRadius: '8px', overflow: 'visible' }
 const deleteBtnStyle = { width: '30px', height: '30px', minWidth: '30px', minHeight: '30px', borderRadius: '50%', background: '#8B0000', color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0', lineHeight: '1', fontSize: '16px', flexShrink: 0 }
 const modalOverlayStyle = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }
 const modalBoxStyle = { background: '#fff', padding: '30px', borderRadius: '15px', textAlign: 'center', width: '300px', border: '2px solid #38422B' }

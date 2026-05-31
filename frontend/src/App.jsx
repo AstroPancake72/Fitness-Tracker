@@ -14,7 +14,7 @@ import ExerciseSuggestions from './pages/ExerciseSuggestions';
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true); 
-  
+
   const [pendingSuggestions, setPendingSuggestions] = useState([]);
   
   const [page, setPage] = useState(() => {
@@ -22,6 +22,29 @@ function App() {
   });
   
   const [openMessageUserId, setOpenMessageUserId] = useState(null);
+  const [activeWorkout, setActiveWorkout] = useState(null);
+
+  const [masterExerciseList, setMasterExerciseList] = useState([]);
+
+  useEffect(() => {
+    if (!loggedIn) return;
+    fetch("http://localhost:5000/api/exercises", { credentials: "include" })
+      .then(res => res.json())
+      .then(data => {
+        console.log("Master list loaded:", data.length, data[0]);
+        if (Array.isArray(data)) setMasterExerciseList(data);
+      })
+      .catch(err => console.error("Exercise list error:", err));
+  }, [loggedIn]);
+
+  {page === 'workouts' && (
+    <Workouts
+      activeWorkout={activeWorkout}
+      setActiveWorkout={setActiveWorkout}
+      masterExerciseList={masterExerciseList}
+    />
+  )}
+  {page === 'history' && <History masterExerciseList={masterExerciseList} />}
 
   useEffect(() => {
     async function checkLogin() {
@@ -142,14 +165,15 @@ async function handleSelectSuggestedExercise(exercise) {
 
           {page === 'workouts' && (
             <Workouts 
-              pendingSuggestions={pendingSuggestions} 
-              clearPendingSuggestions={() => setPendingSuggestions([])} 
+              activeWorkout={activeWorkout}
+              setActiveWorkout={setActiveWorkout}
+              masterExerciseList={masterExerciseList}
             />
           )}
-          {page === 'history' && <History />}
-          {page === 'goals' && <GoalsTab />}
+          {page === 'history' && <History masterExerciseList={masterExerciseList} />}
+          {page === 'goals' && <GoalsTab masterExerciseList={masterExerciseList} />}
           {page === 'suggestions' && (
-            <ExerciseSuggestions onSelectSuggestedExercise={handleSelectSuggestedExercise} />
+            <ExerciseSuggestions activeWorkout={activeWorkout} setActiveWorkout={setActiveWorkout} />
           )}
           {page === 'profile' && <Profile />}
           {page === 'connect' && <Connect onOpenMessage={handleOpenMessage} />}
