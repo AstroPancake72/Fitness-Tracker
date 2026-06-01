@@ -9,7 +9,6 @@ require("dotenv").config();
 const bcrypt = require("bcrypt");
 const http = require("http");
 const { Server } = require("socket.io");
-const axios = require('axios');
 
 const app = express();
 const server = http.createServer(app);
@@ -1142,17 +1141,17 @@ app.get("/api/exercises", async (req, res) => {
     }
 
     // Fetch in batches of 100 across multiple offsets
-    const limit = 100;
-    const totalToFetch = 1300;
-    const requests = [];
-
     const allExercises = [];
-    for (let offset = 0; offset < totalToFetch; offset += limit) {
+    for (let offset = 0; offset < 2000; offset += 10) {
       const r = await axios.get(
-        `https://exercisedb.p.rapidapi.com/exercises?limit=${limit}&offset=${offset}`,
+        `https://exercisedb.p.rapidapi.com/exercises?limit=10&offset=${offset}`,
         { headers: { 'x-rapidapi-key': process.env.RAPIDAPI_KEY, 'x-rapidapi-host': 'exercisedb.p.rapidapi.com' } }
       );
+      if (!r.data || r.data.length === 0) break;
       allExercises.push(...r.data);
+      if (r.data.length < 10) break;
+      console.log("Page fetched:", offset, "count:", r.data.length);
+      console.log("First item:", r.data[0]?.name);
     }
     exerciseListCache = [...new Set(allExercises.map(ex => ex.name))]; // dedupe
     exerciseListExpiry = now + (60 * 60 * 1000);

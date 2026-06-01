@@ -9,6 +9,7 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, targetId: null, type: null, index: null })
   const [showNameWarning, setShowNameWarning] = useState(false); 
   const [showExerciseWarning, setShowExerciseWarning] = useState(false);
+  const [saveTemplateBanner, setSaveTemplateBanner] = useState(false);
 
   const fetchWorkouts = () => {
     fetch("http://localhost:5000/api/workouts", { credentials: 'include' })
@@ -148,12 +149,62 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
       return;
     }
 
-    const isExistingEdit = activeWorkout._id ? true : false;
-    const url = isExistingEdit
-      ? `http://localhost:5000/api/workouts/${activeWorkout._id}` 
-      : "http://localhost:5000/api/workouts";
-    
-    const method = isExistingEdit ? "PUT" : "POST";
+    // Define cleanedExercises FIRST before any branching
+    const cleanedExercises = allValidExercises.map(({ isOriginal, ...rest }) => ({
+      ...rest,
+      weight: rest.weight === "" ? 0 : Number(rest.weight),
+      reps: rest.reps === "" ? 0 : Number(rest.reps),
+      sets: rest.sets === "" ? 0 : Number(rest.sets),
+      time: rest.time === "" ? 0 : Number(rest.time),
+      instructions: rest.instructions || ""
+    }));
+
+    try {
+      if (activeWorkout.isEditing) {
+        const url = activeWorkout._id
+          ? `http://localhost:5000/api/workouts/${activeWorkout._id}`
+          : "http://localhost:5000/api/workouts";
+        const method = activeWorkout._id ? "PUT" : "POST";
+        await fetch(url, {
+          method,
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            name: activeWorkout.name,
+            datetime: activeWorkout.originalDate || new Date(),
+            exercises: cleanedExercises,
+            isTemplate: true
+          }),
+        });
+        setActiveWorkout(null);
+        fetchWorkouts();
+        return;
+      }
+
+      // Log as history entry
+      await fetch("http://localhost:5000/api/workouts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          name: activeWorkout.name,
+          datetime: new Date(),
+          exercises: cleanedExercises,
+          isTemplate: false
+        }),
+      });
+
+      setActiveWorkout(null);
+      setShowExerciseWarning(false);
+      fetchWorkouts();
+    } catch (err) {
+      console.error("Save error:", err);
+    }
+  }
+
+  async function saveTemplate() {
+    const allValidExercises = activeWorkout.exercises.filter(ex => ex.name.trim() !== "");
+    if (allValidExercises.length === 0) return;
 
     try {
       const cleanedExercises = allValidExercises.map(({ isOriginal, ...rest }) => ({
@@ -165,29 +216,29 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
         instructions: rest.instructions || ""
       }));
 
-     const shouldBeTemplate = activeWorkout.isEditing || activeWorkout.templateId === undefined;
+      const url = activeWorkout.templateId
+        ? `http://localhost:5000/api/workouts/${activeWorkout.templateId}`
+        : "http://localhost:5000/api/workouts";
+      const method = activeWorkout.templateId ? "PUT" : "POST";
 
-      const payload = {
-        name: activeWorkout.name,
-        datetime: new Date(), 
-        exercises: cleanedExercises,
-        isTemplate: shouldBeTemplate 
-      };
-
-      const response = await fetch(url, {
-        method: method,
+      await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          name: activeWorkout.name,
+          datetime: new Date(),
+          exercises: cleanedExercises,
+          isTemplate: true
+        }),
       });
 
-      if (response.ok) {
-        setActiveWorkout(null);
-        setShowExerciseWarning(false);
-        fetchWorkouts(); 
-      }
+      fetchWorkouts();
+      // Don't clear activeWorkout — session continues
+      setSaveTemplateBanner(true);
+      setTimeout(() => setSaveTemplateBanner(false), 2500);
     } catch (err) {
-      console.error("Save error:", err);
+      console.error("Template save error:", err);
     }
   }
 
@@ -309,7 +360,7 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
             <hr style={{ border: '1px solid #38422B', marginBottom: '10px', marginTop: '0' }} />
 
             {activeWorkout.exercises.map((ex, i) => {
-              const isFieldDisabled = !activeWorkout.isEditing && ex.isOriginal && ex.name !== "";
+              const isFieldDisabled = false;
 
               return (
                 <div key={i} style={{ marginBottom: '12px' }}>
@@ -352,17 +403,33 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
               );
             })}
 
-            <button className="counter" style={{width: '100%', background: 'transparent', color: '#38422B', border: '1px dashed #38422B', marginBottom: '20px'}}
-              onClick={() => setActiveWorkout({...activeWorkout, exercises: [...activeWorkout.exercises, {name: "", weight: 0, reps: 0, sets: 0, time: 0, isOriginal: false}]})}>
-              {activeWorkout.isEditing ? "+ Add Exercise to Template" : "+ Add Exercise to Session"}
+            {saveTemplateBanner && (
+  <div style={{ background: '#E1EAD6', color: '#38422B', padding: '10px', borderRadius: '8px', 
+    borderLeft: '4px solid #38422B', marginBottom: '12px', fontWeight: 'bold', fontSize: '13px' }}>
+    ✓ Template updated!
+  </div>
+)}
+          <button className="counter" style={{width: '100%', background: 'transparent', color: '#38422B', border: '1px dashed #38422B', marginBottom: '20px'}}
+            onClick={() => setActiveWorkout({...activeWorkout, exercises: [...activeWorkout.exercises, {name: "", weight: 0, reps: 0, sets: 0, time: 0, isOriginal: false}]})}>
+            {activeWorkout.isEditing ? "+ Add Exercise to Template" : "+ Add Exercise to Session"}
+          </button>
+          <div style={{display: 'flex', gap: '10px', marginTop: '20px'}}>
+            <button className="counter" style={{background: '#8B0000', flex: 1}} onClick={() => setActiveWorkout(null)}>
+              Exit
             </button>
-
-            <div style={{display: 'flex', gap: '10px', marginTop: '20px'}}>
-              <button className="counter" style={{background: '#8B0000', flex: 1}} onClick={() => setActiveWorkout(null)}>Exit</button>
-              <button className="counter" style={{flex: 2}} onClick={saveWorkout}>
-                {activeWorkout.isEditing ? "Save Template Config" : "Log Session to History"}
+            
+            {!activeWorkout.isEditing && (
+              <button className="counter" style={{flex: 1, background: 'transparent', color: '#38422B', border: '1px solid #38422B'}} 
+                onClick={saveTemplate}>
+                Save Template
               </button>
-            </div>
+            )}
+            
+            <button className="counter" style={{flex: 2}} onClick={activeWorkout.isEditing ? saveWorkout : saveWorkout}>
+              {activeWorkout.isEditing ? "Save Template Config" : "Log Session to History"}
+            </button>
+          </div>
+
           </div>
         </>
       )}

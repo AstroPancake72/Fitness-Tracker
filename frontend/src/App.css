@@ -608,6 +608,7 @@ body {
 button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
 /* The grid layout applies to BOTH the header and the rows */
 .exercise-row-grid {
   display: grid;
