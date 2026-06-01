@@ -9,7 +9,7 @@ require("dotenv").config();
 const bcrypt = require("bcrypt");
 const http = require("http");
 const { Server } = require("socket.io");
-
+const exerciseData = require("./exerciseData.json");
 const app = express();
 const server = http.createServer(app);
 
@@ -1128,39 +1128,17 @@ app.post("/api/goals/create", async (req, res) => {
 });
 //
 let suggestionsCache = {};
-let exerciseListCache = null;
-let exerciseListExpiry = 0;
 
-app.get("/api/exercises", async (req, res) => {
-  if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
-
-  try {
-    const now = Date.now();
-    if (exerciseListCache && now < exerciseListExpiry) {
-      return res.json(exerciseListCache);
-    }
-
-    // Fetch in batches of 100 across multiple offsets
-    const allExercises = [];
-    for (let offset = 0; offset < 2000; offset += 10) {
-      const r = await axios.get(
-        `https://exercisedb.p.rapidapi.com/exercises?limit=10&offset=${offset}`,
-        { headers: { 'x-rapidapi-key': process.env.RAPIDAPI_KEY, 'x-rapidapi-host': 'exercisedb.p.rapidapi.com' } }
-      );
-      if (!r.data || r.data.length === 0) break;
-      allExercises.push(...r.data);
-      if (r.data.length < 10) break;
-      console.log("Page fetched:", offset, "count:", r.data.length);
-      console.log("First item:", r.data[0]?.name);
-    }
-    exerciseListCache = [...new Set(allExercises.map(ex => ex.name))]; // dedupe
-    exerciseListExpiry = now + (60 * 60 * 1000);
-
-    res.json(exerciseListCache);
-  } catch (err) {
-    console.error("ExerciseDB fetch error:", err.response?.data || err.message);
-    res.status(500).json({ message: "Failed to fetch exercise list" });
+app.get("/api/exercises", (req, res) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ message: "Not logged in" });
   }
+
+  const exerciseNames = [
+    ...new Set(exerciseData.map(ex => ex.name))
+  ];
+
+  res.json(exerciseNames);
 });
 
 // exercise suggestions
@@ -1187,24 +1165,20 @@ app.get("/api/exercise-suggestions", async (req, res) => {
     }
 
     // 2. Map your frontend categories to the correct ExerciseDB API paths
-    let targetPath = 'exercises?limit=10';
+    let rawData = [];
+
     if (userCategory === "CARDIOVASCULAR" || userCategory === "BODY_COMPOSITION") {
-      targetPath = 'exercises/bodyPart/cardio?limit=10';
-    } else if (userCategory === "HYPERTROPHY") {
-      targetPath = 'exercises/target/pectorals?limit=10';
-    } else if (userCategory === "STRENGTH") {
-      targetPath = 'exercises/equipment/barbell?limit=10';
+      rawData = exerciseData.filter(ex => ex.bodyPart === "cardio");
     }
-
-    console.log(`Making LIVE request to ExerciseDB for category [${userCategory}]...`);
-    const response = await axios.get(`https://exercisedb.p.rapidapi.com/${targetPath}`, {
-      headers: {
-        'x-rapidapi-key': process.env.RAPIDAPI_KEY, 
-        'x-rapidapi-host': 'exercisedb.p.rapidapi.com'
-      }
-    });
-
-    const rawData = response.data;
+    else if (userCategory === "HYPERTROPHY") {
+      rawData = exerciseData.filter(ex => ex.target === "pectorals");
+    }
+    else if (userCategory === "STRENGTH") {
+      rawData = exerciseData.filter(ex => ex.equipment === "barbell");
+    }
+    else {
+      rawData = exerciseData;
+    }
     const suggestions = rawData.slice(0, 5).map(exercise => {
       const isCardio = exercise.bodyPart === "cardio";
       let baselineWeight = 0;
@@ -1271,7 +1245,6 @@ app.delete("/api/goals/:id", async (req, res) => {
     res.status(500).json({ message: "Error deleting goal" });
   }
 });
-
 
 server.listen(5000, () => {
   console.log("Server running on port 5000");
