@@ -1,36 +1,55 @@
 import { useState, useEffect } from 'react'
 import '../App.css'
+import ExerciseAutocomplete from "./ExerciseAutocomplete";
 
-export default function Workouts() {
+export default function Workouts({ activeWorkout, setActiveWorkout, masterExerciseList = [] }) {
   const [workouts, setWorkouts] = useState([])
-  const [activeWorkout, setActiveWorkout] = useState(null)
   const [newRoutineName, setNewRoutineName] = useState("")
   const [showAddRoutine, setShowAddRoutine] = useState(false)
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, targetId: null, type: null, index: null })
   const [showNameWarning, setShowNameWarning] = useState(false); 
   const [showExerciseWarning, setShowExerciseWarning] = useState(false);
 
-  useEffect(() => {
+  const fetchWorkouts = () => {
     fetch("http://localhost:5000/api/workouts", { credentials: 'include' })
       .then(res => res.json())
       .then(data => { if (Array.isArray(data)) setWorkouts(data); })
       .catch(err => console.error("Load error:", err));
+  };
+
+  useEffect(() => {
+    fetchWorkouts();
   }, [])
 
-  const routines = workouts.reduce((acc, current) => {
+  const displayRoutines = workouts.filter(w => {
+    if (w.name && w.name.startsWith("Suggested:")) return true;
+    
+    if (w.isTemplate) return true;
+
+    const hasNoLoggedStats = w.exercises && w.exercises.every(ex => (ex.weight || 0) === 0);
+    return hasNoLoggedStats;
+  });
+
+  const uniqueRoutines = displayRoutines.reduce((acc, current) => {
     if (!current.name) return acc;
-    const existingIndex = acc.findIndex(item => item.name.trim().toLowerCase() === current.name.trim().toLowerCase());
+    
+    const existingIndex = acc.findIndex(
+      item => item.name.trim().toLowerCase() === current.name.trim().toLowerCase()
+    );
     
     if (existingIndex === -1) {
       acc.push(current);
     } else {
-      if (new Date(current.datetime) > new Date(acc[existingIndex].datetime)) {
+      const existingItem = acc[existingIndex];
+      if (current.isTemplate && !existingItem.isTemplate) {
+        acc[existingIndex] = current;
+      } else if (new Date(current.datetime) > new Date(existingItem.datetime) && (current.isTemplate === existingItem.isTemplate)) {
         acc[existingIndex] = current;
       }
     }
     return acc;
   }, []);
-  
+
   function editWorkout(routine) {
     setActiveWorkout({
       isEditing: true,
@@ -38,23 +57,55 @@ export default function Workouts() {
       originalDate: routine.datetime, 
       originalName: routine.name,
       name: routine.name,
-      exercises: routine.exercises.map(ex => ({ ...ex })) 
+      exercises: routine.exercises.map(ex => ({ ...ex, instructions: ex.instructions || "", isOriginal: false }))
     });
   }
 
   function startWorkout(baseline) {
-    setActiveWorkout({
-      isEditing: false,
-      name: baseline.name,
-      exercises: baseline.exercises.map(ex => ({
-        ...ex,
-        weight: ex.weight || 0,
-        reps: ex.reps || 0,
-        sets: ex.sets || 0,
-        time: ex.time || 0,
-        isOriginal: true 
-      }))
-    });
+    const newExercises = baseline.exercises.map(ex => ({
+      ...ex,
+      weight: ex.weight || 0,
+      reps: ex.reps || 0,
+      sets: ex.sets || 0,
+      time: ex.time || 0,
+      instructions: ex.instructions || "",
+      isOriginal: true
+    }));
+
+    // Scenario A: no active workout → just start it
+    if (!activeWorkout) {
+      setActiveWorkout({
+        isEditing: false,
+        templateId: baseline._id,
+        name: baseline.name,
+        exercises: newExercises
+      });
+      return;
+    }
+
+    // Scenario B: workout already in progress → ask user
+    const choice = window.confirm(
+      `You already have "${activeWorkout.name}" in progress.\n\nClick OK to append "${baseline.name}" to your current session.\nClick Cancel to discard your current session and start fresh.`
+    );
+
+    if (choice) {
+      // Append template exercises to existing session
+      setActiveWorkout({
+        ...activeWorkout,
+        exercises: [
+          ...activeWorkout.exercises,
+          ...newExercises
+        ]
+      });
+    } else {
+      // Discard and start fresh
+      setActiveWorkout({
+        isEditing: false,
+        templateId: baseline._id,
+        name: baseline.name,
+        exercises: newExercises
+      });
+    }
   }
 
   const openDeleteModal = (type, idOrIndex) => {
@@ -72,9 +123,7 @@ export default function Workouts() {
         method: 'DELETE',
         credentials: 'include'
       });
-      if (res.ok) {
-        setWorkouts(prev => prev.filter(w => w._id !== deleteModal.targetId));
-      }
+      if (res.ok) fetchWorkouts();
     } else {
       const updated = activeWorkout.exercises.filter((_, i) => i !== deleteModal.index);
       setActiveWorkout({ ...activeWorkout, exercises: updated });
@@ -82,77 +131,60 @@ export default function Workouts() {
     setDeleteModal({ isOpen: false, targetId: null, type: null, index: null });
   }
 
-  // FIXED: Safely handles empty string values while typing numbers
   const updateExercise = (index, field, value) => {
     const updated = [...activeWorkout.exercises];
-    
     if (field === 'name') {
       updated[index][field] = value;
     } else {
-      // If the field is empty, preserve it as an empty string in state so typing doesn't lock
       updated[index][field] = value === "" ? "" : Number(value);
     }
-    
     setActiveWorkout({ ...activeWorkout, exercises: updated });
-    
-    if (field === 'name' && value.trim() !== "") {
-      setShowExerciseWarning(false);
-    }
   }
 
   async function saveWorkout() {
     const allValidExercises = activeWorkout.exercises.filter(ex => ex.name.trim() !== "");
-    
     if (allValidExercises.length === 0) {
       setShowExerciseWarning(true);
       return;
     }
 
-    const url = activeWorkout.isEditing 
+    const isExistingEdit = activeWorkout._id ? true : false;
+    const url = isExistingEdit
       ? `http://localhost:5000/api/workouts/${activeWorkout._id}` 
       : "http://localhost:5000/api/workouts";
     
-    const method = activeWorkout.isEditing ? "PUT" : "POST";
-    const workoutDate = activeWorkout.isEditing ? activeWorkout.originalDate : new Date();
+    const method = isExistingEdit ? "PUT" : "POST";
 
     try {
-      // Maps across exercises and coerces any temporary "" state strings into structural 0s for MongoDB storage
       const cleanedExercises = allValidExercises.map(({ isOriginal, ...rest }) => ({
         ...rest,
-        weight: rest.weight === "" ? 0 : rest.weight,
-        reps: rest.reps === "" ? 0 : rest.reps,
-        sets: rest.sets === "" ? 0 : rest.sets,
-        time: rest.time === "" ? 0 : rest.time,
+        weight: rest.weight === "" ? 0 : Number(rest.weight),
+        reps: rest.reps === "" ? 0 : Number(rest.reps),
+        sets: rest.sets === "" ? 0 : Number(rest.sets),
+        time: rest.time === "" ? 0 : Number(rest.time),
+        instructions: rest.instructions || ""
       }));
+
+     const shouldBeTemplate = activeWorkout.isEditing || activeWorkout.templateId === undefined;
+
+      const payload = {
+        name: activeWorkout.name,
+        datetime: new Date(), 
+        exercises: cleanedExercises,
+        isTemplate: shouldBeTemplate 
+      };
 
       const response = await fetch(url, {
         method: method,
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          name: activeWorkout.name,
-          datetime: workoutDate, 
-          exercises: cleanedExercises 
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (response.ok) {
-        const saved = await response.json();
-        
-        if (activeWorkout.isEditing) {
-          setWorkouts(prev => prev.map(w => {
-            if (w._id === saved._id) return saved;
-            if (activeWorkout.originalName && w.name === activeWorkout.originalName) {
-              return { ...w, name: saved.name };
-            }
-            return w;
-          }));
-        } else {
-          setWorkouts(prev => [saved, ...prev]);
-        }
-        
         setActiveWorkout(null);
-        setShowExerciseWarning(false); 
+        setShowExerciseWarning(false);
+        fetchWorkouts(); 
       }
     } catch (err) {
       console.error("Save error:", err);
@@ -160,7 +192,7 @@ export default function Workouts() {
   }
 
   return (
-    <div className="login-container" style={{maxWidth: '900px'}}>
+    <div className="login-container" style={{maxWidth: '900px', overflow: 'visible'}}>
       {deleteModal.isOpen && (
         <div style={modalOverlayStyle}>
           <div style={modalBoxStyle}>
@@ -174,58 +206,52 @@ export default function Workouts() {
         </div>
       )}
 
-      <h1>{activeWorkout ? (activeWorkout.isEditing ? `Editing Workout: ${activeWorkout.name}` : `Active Session: ${activeWorkout.name}`) : "My Workouts"}</h1>
+      <h1>{activeWorkout ? (activeWorkout.isEditing ? `Editing Template: ${activeWorkout.name}` : `Active Session: ${activeWorkout.name}`) : "My Workouts"}</h1>
 
       {!activeWorkout ? (
         <div style={{ width: '100%' }}>
           {!showAddRoutine ? (
             <button className="counter" style={{width: '100%', marginBottom: '20px'}} onClick={() => setShowAddRoutine(true)}>
-              + Create New Routine
+              + Create New Routine Template
             </button>
           ) : (
             <div>
               <div style={{ marginTop: '20px', marginBottom: '10px', display: 'flex', gap: '20px' }}>
-                <input 
-                  className="login-input-style" 
-                  placeholder="Routine Name..." 
-                  value={newRoutineName} 
+                <input
+                  className="login-input-style"
+                  placeholder="Routine Name..."
+                  value={newRoutineName}
                   onChange={(e) => {
                     setNewRoutineName(e.target.value);
-                    if (e.target.value.trim()) setShowNameWarning(false); 
-                  }} 
-                  style={{ marginTop: '-5px' , marginBottom: '15px'}} 
+                    if (e.target.value.trim()) setShowNameWarning(false);
+                  }}
+                  style={{ marginTop: '-5px', marginBottom: '15px' }}
                 />
-                <button 
-                  className="counter" 
-                  onClick={() => { 
+                <button
+                  className="counter"
+                  onClick={() => {
                     if (!newRoutineName.trim()) {
                       setShowNameWarning(true);
                       return;
                     }
-                    
-                    setActiveWorkout({name: newRoutineName, exercises: [{name: "", weight: 0, reps: 0, sets: 0, time: 0}]}); 
-                    setShowAddRoutine(false); 
-                    setShowNameWarning(false);
+                    setActiveWorkout({isEditing: true, name: newRoutineName, exercises: [{name: "", weight: 0, reps: 0, sets: 0, time: 0}]});
+                    setShowAddRoutine(false);
                     setNewRoutineName("");
                   }}
                 >
                   Add
                 </button>
               </div>
-              
-              {showNameWarning && (
-                <p style={{ color: '#8B0000', fontSize: '14px', margin: '-5px 0 15px 0', textAlign: 'left', fontWeight: 'bold' }}>
-                  Please add a routine name before clicking Add.
-                </p>
-              )}
             </div>
           )}
 
-          {routines.map(r => (
+          {uniqueRoutines.map(r => (
             <div key={r._id} style={itemStyle}>
               <div style={{textAlign: 'left'}}>
-                <div style={{fontWeight: 'bold', fontSize: '18px'}}>{r.name}</div>
-                <div style={{fontSize: '12px', color: '#666'}}>Last: {new Date(r.datetime).toLocaleDateString()}</div>
+                <div style={{fontWeight: 'bold', fontSize: '18px', textTransform: 'capitalize'}}>{r.name}</div>
+                <div style={{fontSize: '12px', color: '#666'}}>
+                  {r.name.startsWith("Suggested:") ? "Recommended" : "Custom"}
+                </div>
               </div>
               <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
                 <button className="counter" onClick={() => startWorkout(r)}>Start</button>
@@ -236,120 +262,117 @@ export default function Workouts() {
           ))}
         </div>
       ) : (
-        <div style={sessionBoxStyle}>
-          {activeWorkout.isEditing && (
-            <div style={{ marginBottom: '15px' }}>
-              <input 
-                className="login-input-style" 
-                value={activeWorkout.name} 
-                onChange={(e) => setActiveWorkout({...activeWorkout, name: e.target.value})} 
-                placeholder="Routine Name"
-                style={{ width: '100%', boxSizing: 'border-box' }}
-              />
+        <>
+          {activeWorkout.exercises.some(ex => ex.instructions) && (
+            <div style={{
+              textAlign: 'left',
+              fontSize: '13px',
+              color: '#38422B',
+              background: '#EAEFE3',
+              padding: '12px 15px',
+              borderRadius: '12px',
+              border: '1px solid #38422B',
+              borderLeft: '5px solid #38422B',
+              lineHeight: '1.5',
+              marginBottom: '15px',
+              boxSizing: 'border-box',
+              width: '100%'
+            }}>
+              <strong style={{ fontSize: '14px', display: 'block', marginBottom: '4px' }}>Exercise Guide Instructions:</strong>
+              {activeWorkout.exercises.map((ex, idx) => ex.instructions ? (
+                <div key={idx} style={{ margin: '4px 0' }}>
+                  <strong>{ex.name || "Exercise"}:</strong> {ex.instructions}
+                </div>
+              ) : null)}
             </div>
           )}
 
-          <div style={{display: 'flex', fontWeight: 'bold', padding: '10px 10px 5px 10px', textAlign: 'left', fontSize: '14px'}}>
-            <span style={{flex: 2}}>name</span>
-            <span style={{flex: 1}}>weight</span>
-            <span style={{flex: 1}}>reps</span>
-            <span style={{flex: 1}}>sets</span>
-            <span style={{flex: 1}}>time (min)</span>
-            <span style={{width: '35px'}}></span>
-          </div>
-          <hr style={{ border: '1px solid #38422B', marginBottom: '15px', marginTop: '0' }} />
+          <div style={sessionBoxStyle}>
+            <div style={{ marginBottom: '15px' }}>
+              <input
+                className="login-input-style"
+                value={activeWorkout.name}
+                onChange={(e) => setActiveWorkout({...activeWorkout, name: e.target.value})}
+                placeholder="Session Name"
+                style={{ width: '100%', boxSizing: 'border-box' }}
+              />
+            </div>
 
-          {activeWorkout.exercises.map((ex, i) => {
-            const isFieldDisabled = !activeWorkout.isEditing && ex.isOriginal;
+            <div className="exercise-row-grid" style={{ fontWeight: 'bold', padding: '10px 10px 5px 10px', textAlign: 'center', fontSize: '14px' }}>
+              <span>Name</span>
+              <span>Weight</span>
+              <span>Reps</span>
+              <span>Sets</span>
+              <span>Time (min)</span>
+              <span></span>
+            </div>
+            <hr style={{ border: '1px solid #38422B', marginBottom: '10px', marginTop: '0' }} />
 
-            return (
-              <div key={i} style={{...exerciseRowStyle, opacity: isFieldDisabled ? 0.65 : 1}}>
-                <input 
-                  value={ex.name} 
-                  onChange={(e) => updateExercise(i, 'name', e.target.value)} 
-                  style={{flex: 2, border: 'none', background: 'transparent', fontWeight: isFieldDisabled ? 'bold' : 'normal'}} 
-                  placeholder="Exercise..."
-                  disabled={isFieldDisabled}
-                />
-                
-                {/* Fixed Inputs: value maps cleanly to empty strings for painless typing updates */}
-                <input 
-                  type="number" 
-                  value={ex.weight === 0 ? "" : ex.weight} 
-                  placeholder="0"
-                  onChange={(e) => updateExercise(i, 'weight', e.target.value)} 
-                  style={{flex: 1, width: '40px'}} 
-                  disabled={isFieldDisabled} 
-                  onFocus={(e) => e.target.select()} 
-                />
+            {activeWorkout.exercises.map((ex, i) => {
+              const isFieldDisabled = !activeWorkout.isEditing && ex.isOriginal && ex.name !== "";
 
-                <input 
-                  type="number" 
-                  value={ex.reps === 0 ? "" : ex.reps} 
-                  placeholder="0"
-                  onChange={(e) => updateExercise(i, 'reps', e.target.value)} 
-                  style={{flex: 1, width: '40px'}} 
-                  disabled={isFieldDisabled} 
-                  onFocus={(e) => e.target.select()}
-                />
+              return (
+                <div key={i} style={{ marginBottom: '12px' }}>
+                  <div className="exercise-row-grid"style={{
+                    ...exerciseRowStyle,
+                    opacity: isFieldDisabled ? 0.85 : 1,
+                    marginBottom: '0',
+                    padding: isFieldDisabled ? '8px 10px' : '10px',
+                  }}>
+                    {isFieldDisabled ? (
+                      <input 
+                        type="text"
+                        className="exercise-input exercise-name-input"
+                        value={ex.name}
+                        readOnly
+                        style={{ fontWeight: 'bold', textTransform: 'capitalize', cursor: 'default' }}
+                      />
+                    ) : (
+                      <ExerciseAutocomplete
+                        value={ex.name}
+                        className="exercise-input exercise-name-input"
+                        onChange={(val) => updateExercise(i, 'name', val)}
+                        masterList={masterExerciseList}
+                        placeholder="Exercise..."
+                      />
+                    )}
 
-                <input 
-                  type="number" 
-                  value={ex.sets === 0 ? "" : ex.sets} 
-                  placeholder="0"
-                  onChange={(e) => updateExercise(i, 'sets', e.target.value)} 
-                  style={{flex: 1, width: '40px'}} 
-                  disabled={isFieldDisabled} 
-                  onFocus={(e) => e.target.select()}
-                />
+                    <input className="exercise-input" type="number" value={ex.weight === 0 ? "" : ex.weight} placeholder="0" onChange={(e) => updateExercise(i, 'weight', e.target.value)} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
+                    <input className="exercise-input" type="number" value={ex.reps === 0 ? "" : ex.reps} placeholder="0" onChange={(e) => updateExercise(i, 'reps', e.target.value)} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
+                    <input className="exercise-input" type="number" value={ex.sets === 0 ? "" : ex.sets} placeholder="0" onChange={(e) => updateExercise(i, 'sets', e.target.value)} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
+                    <input className="exercise-input" type="number" value={ex.time === 0 ? "" : ex.time} placeholder="0" onChange={(e) => updateExercise(i, 'time', e.target.value)} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
 
-                <input 
-                  type="number" 
-                  value={ex.time === 0 ? "" : ex.time} 
-                  placeholder="0"
-                  onChange={(e) => updateExercise(i, 'time', e.target.value)} 
-                  style={{flex: 1, width: '40px'}} 
-                  disabled={isFieldDisabled} 
-                  onFocus={(e) => e.target.select()}
-                />
-                
-                {!isFieldDisabled ? (
-                  <button onClick={() => openDeleteModal('exercise', i)} style={deleteBtnStyle}>✕</button>
-                ) : (
-                  <span style={{width: '30px'}}></span>
-                )}
-              </div>
-            );
-          })}
+                    {!isFieldDisabled ? (
+                      <button onClick={() => openDeleteModal('exercise', i)} style={deleteBtnStyle}>✕</button>
+                    ) : (
+                      <span style={{width: '30px'}}></span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
 
-          {!activeWorkout.isEditing && (
-            <button className="counter" style={{width: '100%', background: 'transparent', color: '#38422B', border: '1px dashed #38422B', marginBottom: '20px'}} 
-                    onClick={() => setActiveWorkout({...activeWorkout, exercises: [...activeWorkout.exercises, {name: "", weight: 0, reps: 0, sets: 0, time: 0}]})}>
-              + Add Exercise
+            <button className="counter" style={{width: '100%', background: 'transparent', color: '#38422B', border: '1px dashed #38422B', marginBottom: '20px'}}
+              onClick={() => setActiveWorkout({...activeWorkout, exercises: [...activeWorkout.exercises, {name: "", weight: 0, reps: 0, sets: 0, time: 0, isOriginal: false}]})}>
+              {activeWorkout.isEditing ? "+ Add Exercise to Template" : "+ Add Exercise to Session"}
             </button>
-          )}
 
-          {showExerciseWarning && (
-            <p style={{ color: '#8B0000', fontSize: '14px', margin: '0 0 15px 0', textAlign: 'center', fontWeight: 'bold' }}>
-              Please make sure at least one exercise has a valid name before logging your session.
-            </p>
-          )}
-
-          <div style={{display: 'flex', gap: '10px'}}>
-            <button className="counter" style={{background: '#8B0000', flex: 1}} onClick={() => setActiveWorkout(null)}>Exit</button>
-            <button className="counter" style={{flex: 2}} onClick={saveWorkout}>
-              {activeWorkout.isEditing ? "Save Edits" : "Log Session"}
-            </button>
+            <div style={{display: 'flex', gap: '10px', marginTop: '20px'}}>
+              <button className="counter" style={{background: '#8B0000', flex: 1}} onClick={() => setActiveWorkout(null)}>Exit</button>
+              <button className="counter" style={{flex: 2}} onClick={saveWorkout}>
+                {activeWorkout.isEditing ? "Save Template Config" : "Log Session to History"}
+              </button>
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   )
 }
 
 const itemStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F5F1E8', padding: '15px', borderRadius: '15px', marginBottom: '10px', border: '1px solid #38422B' }
-const sessionBoxStyle = { width: '100%', background: '#F5F1E8', padding: '20px', borderRadius: '20px', border: '2px solid #38422B' }
-const exerciseRowStyle = { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', background: 'white', padding: '10px', borderRadius: '8px' }
+const sessionBoxStyle = { width: '100%', background: '#F5F1E8', padding: '20px', borderRadius: '20px', border: '2px solid #38422B', overflow: 'visible' }
+const exerciseRowStyle = { background: 'white', borderRadius: '8px', overflow: 'visible' }
 const deleteBtnStyle = { width: '30px', height: '30px', minWidth: '30px', minHeight: '30px', borderRadius: '50%', background: '#8B0000', color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0', lineHeight: '1', fontSize: '16px', flexShrink: 0 }
 const modalOverlayStyle = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }
 const modalBoxStyle = { background: '#fff', padding: '30px', borderRadius: '15px', textAlign: 'center', width: '300px', border: '2px solid #38422B' }

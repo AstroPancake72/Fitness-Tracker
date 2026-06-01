@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import '../App.css'
+import ExerciseAutocomplete from "./ExerciseAutocomplete";
 
-export default function History() {
+export default function History({ masterExerciseList = [] }) {
   const [workouts, setWorkouts] = useState([])
   const [expandedHistoryId, setExpandedHistoryId] = useState(null)
   const [workoutSearch, setWorkoutSearch] = useState("")
@@ -11,11 +12,15 @@ export default function History() {
   const [selectedExercise, setSelectedExercise] = useState(null)
   const [yAxis, setYAxis] = useState("weight")
   const dropdownRef = useRef(null)
+  const [editingWorkout, setEditingWorkout] = useState(null)  // holds the workout being edited
+  const [saveMessage, setSaveMessage] = useState("")
 
   useEffect(() => {
     fetch("http://localhost:5000/api/workouts", { credentials: 'include' })
       .then(res => res.json())
-      .then(data => { if (Array.isArray(data)) setWorkouts(data); })
+      .then(data => { if (Array.isArray(data)) {const trueLoggedHistory = data.filter(workout => !workout.isTemplate);
+          setWorkouts(trueLoggedHistory); 
+        } })
       .catch(err => console.error("Load error:", err));
   }, [])
 
@@ -30,32 +35,35 @@ export default function History() {
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
-  // Filter workout log by workout name
   const filteredWorkouts = workouts.filter(log => {
     if (!workoutSearch.trim()) return true
     return log.name && log.name.toLowerCase().includes(workoutSearch.toLowerCase())
   })
 
-  // Build dropdown: unique exercise names matching the exercise search
   function handleExerciseSearchChange(e) {
-    const query = e.target.value
-    setExerciseSearch(query)
+    const query = e.target.value;
+    setExerciseSearch(query);
     if (!query.trim()) {
-      setExerciseDropdown([])
-      return
+      setExerciseDropdown([]);
+      return;
     }
-    const seen = new Set()
-    const matches = []
+
+    // Build a set of names from actual logged workouts
+    const loggedNames = new Set();
     for (const workout of workouts) {
       for (const ex of workout.exercises) {
-        const name = ex.name?.trim()
-        if (name && name.toLowerCase().includes(query.toLowerCase()) && !seen.has(name.toLowerCase())) {
-          seen.add(name.toLowerCase())
-          matches.push(name)
-        }
+        const name = ex.name || ex.exerciseId?.name;
+        if (name) loggedNames.add(name.trim());
       }
     }
-    setExerciseDropdown(matches)
+
+    // Merge master list with logged names, then filter
+    const combined = [...new Set([...masterExerciseList, ...loggedNames])];
+    const matches = combined
+      .filter(name => name.toLowerCase().includes(query.toLowerCase()))
+      .slice(0, 8);
+
+    setExerciseDropdown(matches);
   }
 
   function selectExercise(name) {
@@ -71,7 +79,6 @@ export default function History() {
     setExerciseDropdown([])
   }
 
-  // Build graph data for selected exercise
   function buildGraphData() {
     if (!selectedExercise) return []
 
@@ -81,7 +88,7 @@ export default function History() {
       const timestamp = new Date(workout.datetime).getTime()
 
       const matching = workout.exercises.filter(
-        ex => ex.name?.trim().toLowerCase() === selectedExercise.toLowerCase()
+        ex => (ex.name || ex.exerciseId?.name)?.trim().toLowerCase() === selectedExercise.toLowerCase()
       )
       if (matching.length === 0) continue
 
@@ -107,6 +114,31 @@ export default function History() {
     return Object.values(sessionMap).sort((a, b) => a.timestamp - b.timestamp)
   }
 
+  async function saveEditedWorkout() {
+    try {
+      const res = await fetch(`http://localhost:5000/api/workouts/${editingWorkout._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          name: editingWorkout.name,
+          datetime: editingWorkout.datetime,
+          exercises: editingWorkout.exercises,
+          isTemplate: false
+        })
+      })
+      if (res.ok) {
+        const updated = await res.json()
+        setWorkouts(prev => prev.map(w => w._id === updated._id ? updated : w))
+        setEditingWorkout(null)
+        setSaveMessage("Workout saved!")
+        setTimeout(() => setSaveMessage(""), 3000)
+      }
+    } catch (err) {
+      console.error("Save error:", err)
+    }
+  }
+
   const graphData = buildGraphData()
 
   const yAxisLabels = {
@@ -120,7 +152,11 @@ export default function History() {
   return (
     <div className="login-container" style={{ maxWidth: '900px' }}>
       <h1>Workout History</h1>
-
+      {saveMessage && (
+        <div style={{ background: '#E1EAD6', color: '#38422B', padding: '12px', borderRadius: '8px', borderLeft: '5px solid #38422B', marginBottom: '16px', fontWeight: 'bold' }}>
+          ✓ {saveMessage}
+        </div>
+      )}
       {selectedExercise ? (
         //  GRAPH 
        <div style={{ width: '100%' }}>
@@ -281,22 +317,72 @@ export default function History() {
                   {isExpanded && (
                     <div style={{ marginTop: '10px', background: 'white', padding: '15px', borderRadius: '8px', border: '1px solid #38422B' }}>
                       <div style={{ display: 'flex', fontWeight: 'bold', paddingBottom: '5px', fontSize: '13px', color: '#38422B', textAlign: 'left' }}>
-                        <span style={{ flex: 2 }}>name</span>
-                        <span style={{ flex: 1 }}>weight</span>
-                        <span style={{ flex: 1 }}>reps</span>
-                        <span style={{ flex: 1 }}>sets</span>
-                        <span style={{ flex: 1 }}>time</span>
+                        <span style={{ flex: 2 }}>Name</span>
+                        <span style={{ flex: 1 }}>Weight</span>
+                        <span style={{ flex: 1 }}>Reps</span>
+                        <span style={{ flex: 1 }}>Sets</span>
+                        <span style={{ flex: 1 }}>Time (min)</span>
                       </div>
                       <hr style={{ margin: '5px 0 10px 0', border: '1px solid #38422B' }} />
-                      {log.exercises.map((ex, idx) => (
-                        <div key={idx} style={{ display: 'flex', textAlign: 'left', padding: '6px 0', fontSize: '14px', borderBottom: '1px dashed #eee' }}>
-                          <span style={{ flex: 2, fontWeight: '500' }}>{ex.name || 'Unnamed Exercise'}</span>
-                          <span style={{ flex: 1 }}>{ex.weight} lbs</span>
-                          <span style={{ flex: 1 }}>{ex.reps} reps</span>
-                          <span style={{ flex: 1 }}>{ex.sets} sets</span>
-                          <span style={{ flex: 1 }}>{ex.time || 0} min</span>
-                        </div>
-                      ))}
+
+                      {editingWorkout?._id === log._id ? (
+                        // ── EDIT MODE ──
+                        <>
+                          {editingWorkout.exercises.map((ex, idx) => (
+                            <div key={idx} style={{ display: 'flex', gap: '6px', marginBottom: '8px', alignItems: 'center' }}>
+                              <ExerciseAutocomplete
+                                value={ex.name}
+                                onChange={val => {
+                                  const updated = [...editingWorkout.exercises];
+                                  updated[idx] = { ...updated[idx], name: val };
+                                  setEditingWorkout({ ...editingWorkout, exercises: updated });
+                                }}
+                                masterList={masterExerciseList}
+                                style={{ flex: 2, padding: '4px 6px', borderRadius: '6px', border: '1px solid #CCD5C0' }}
+                                placeholder="Exercise..."
+                              />
+                              {['weight','reps','sets','time'].map(field => (
+                                <input
+                                  key={field}
+                                  type="number"
+                                  value={ex[field] || ""}
+                                  placeholder="0"
+                                  onChange={e => {
+                                    const updated = [...editingWorkout.exercises]
+                                    updated[idx] = { ...updated[idx], [field]: Number(e.target.value) }
+                                    setEditingWorkout({ ...editingWorkout, exercises: updated })
+                                  }}
+                                  style={{ flex: 1, width: '40px', padding: '4px 6px', borderRadius: '6px', border: '1px solid #CCD5C0' }}
+                                />
+                              ))}
+                            </div>
+                          ))}
+                          <div style={{ display: 'flex', gap: '10px', marginTop: '12px' }}>
+                            <button className="counter" style={{ flex: 1, background: '#8B0000' }} onClick={() => setEditingWorkout(null)}>Cancel</button>
+                            <button className="counter" style={{ flex: 2 }} onClick={saveEditedWorkout}>Save Changes</button>
+                          </div>
+                        </>
+                      ) : (
+                        // ── VIEW MODE ──
+                        <>
+                          {log.exercises.map((ex, idx) => (
+                            <div key={idx} style={{ display: 'flex', textAlign: 'left', padding: '6px 0', fontSize: '14px', borderBottom: '1px dashed #eee' }}>
+                              <span style={{ flex: 2, fontWeight: '500', textTransform: 'capitalize' }}>{ex.name || ex.exerciseId?.name || 'Unnamed Exercise'}</span>
+                              <span style={{ flex: 1 }}>{ex.weight} lbs</span>
+                              <span style={{ flex: 1 }}>{ex.reps} reps</span>
+                              <span style={{ flex: 1 }}>{ex.sets} sets</span>
+                              <span style={{ flex: 1 }}>{ex.time || 0} min</span>
+                            </div>
+                          ))}
+                          <button
+                            className="counter"
+                            style={{ marginTop: '12px', width: '100%', background: 'transparent', color: '#38422B', border: '1px dashed #38422B' }}
+                            onClick={() => setEditingWorkout({ ...log })}
+                          >
+                            ✎ Edit This Session
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>

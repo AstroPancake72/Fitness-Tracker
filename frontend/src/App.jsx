@@ -11,17 +11,44 @@ import Messages, { disconnectSocket } from './pages/Messages';
  
 import DietSuggestions from "./pages/DietSuggestions";
 
+import GoalsTab from './pages/GoalsTab';
+import ExerciseSuggestions from './pages/ExerciseSuggestions'; 
 
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true); 
 
+  const [pendingSuggestions, setPendingSuggestions] = useState([]);
+  
   const [page, setPage] = useState(() => {
     return localStorage.getItem('current_page') || 'login';
   });
   
   const [openMessageUserId, setOpenMessageUserId] = useState(null);
- 
+  const [activeWorkout, setActiveWorkout] = useState(null);
+
+  const [masterExerciseList, setMasterExerciseList] = useState([]);
+
+  useEffect(() => {
+    if (!loggedIn) return;
+    fetch("http://localhost:5000/api/exercises", { credentials: "include" })
+      .then(res => res.json())
+      .then(data => {
+        console.log("Master list loaded:", data.length, data[0]);
+        if (Array.isArray(data)) setMasterExerciseList(data);
+      })
+      .catch(err => console.error("Exercise list error:", err));
+  }, [loggedIn]);
+
+  {page === 'workouts' && (
+    <Workouts
+      activeWorkout={activeWorkout}
+      setActiveWorkout={setActiveWorkout}
+      masterExerciseList={masterExerciseList}
+    />
+  )}
+  {page === 'history' && <History masterExerciseList={masterExerciseList} />}
+
   useEffect(() => {
     async function checkLogin() {
       try {
@@ -61,12 +88,46 @@ function App() {
     setPage(newPage);
     localStorage.setItem('current_page', newPage);
   }
- 
+
+async function handleSelectSuggestedExercise(exercise) {
+  try {
+    const workoutPayload = {
+      name: `Suggested: ${exercise.name}`,
+      datetime: new Date(),
+      isTemplate: true, 
+      exercises: [
+        {
+          name: exercise.name,
+          weight: exercise.weight || 0,
+          reps: exercise.reps || 0,
+          sets: exercise.sets || 0,
+          time: exercise.time || null,
+          instructions: exercise.instructions || "",
+          isOriginal: true 
+        }
+      ]
+    };
+
+    const response = await fetch("http://localhost:5000/api/workouts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(workoutPayload),
+      credentials: "include",
+    });
+
+    if (!response.ok) throw new Error("Failed to save suggestion template");
+
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+
   function handleOpenMessage(userId) {
     setOpenMessageUserId(userId);
     navigateTo('messages'); 
   }
- 
+
   async function handleLogout() {
     try {
       await fetch("http://localhost:5000/api/logout", {
@@ -89,7 +150,7 @@ function App() {
       </div>
     );
   }
- 
+
   return (
     <>
       {loggedIn ? (
@@ -98,15 +159,27 @@ function App() {
           <nav style={{ display: 'flex', gap: 12, padding: 12, justifyContent: 'center', background: '#CCD5C0', borderBottom: '2px solid #38422B' }}>
             <button onClick={() => navigateTo('workouts')} className="counter" style={page === 'workouts' ? activeNavBtn : {}}>Workouts</button>
             <button onClick={() => navigateTo('history')} className="counter" style={page === 'history' ? activeNavBtn : {}}>History</button>
+            <button onClick={() => navigateTo('goals')} className="counter" style={page === 'goals' ? activeNavBtn : {}}>Goals</button>
+            <button onClick={() => navigateTo('suggestions')} className="counter" style={page === 'suggestions' ? activeNavBtn : {}}>Exercise Suggestions</button>
             <button onClick={() => navigateTo('profile')} className="counter" style={page === 'profile' ? activeNavBtn : {}}>Profile</button>
             <button onClick={() => navigateTo('connect')} className="counter" style={page === 'connect' ? activeNavBtn : {}}>Connect</button>
             <button onClick={() => setPage('diet')} className="counter"> Diet Suggestions</button>
             <button onClick={() => navigateTo('messages')} className="counter" style={page === 'messages' ? activeNavBtn : {}}>Messages</button>
             <button onClick={handleLogout} className="counter">Logout</button>
           </nav>
- 
-          {page === 'workouts' && <Workouts />}
-          {page === 'history' && <History />}
+
+          {page === 'workouts' && (
+            <Workouts 
+              activeWorkout={activeWorkout}
+              setActiveWorkout={setActiveWorkout}
+              masterExerciseList={masterExerciseList}
+            />
+          )}
+          {page === 'history' && <History masterExerciseList={masterExerciseList} />}
+          {page === 'goals' && <GoalsTab masterExerciseList={masterExerciseList} />}
+          {page === 'suggestions' && (
+            <ExerciseSuggestions activeWorkout={activeWorkout} setActiveWorkout={setActiveWorkout}  navigateTo={navigateTo}/>
+          )}
           {page === 'profile' && <Profile />}
           {page === 'connect' && <Connect onOpenMessage={handleOpenMessage} />}
           {page === 'diet' && <DietSuggestions />}
@@ -133,11 +206,11 @@ function App() {
     </>
   );
 }
- 
+
 const activeNavBtn = {
   borderColor: '#9FB873',
   background: '#38422B',
   color: 'white',
 };
- 
+
 export default App;
