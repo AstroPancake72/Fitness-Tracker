@@ -173,7 +173,7 @@ async function handleSelectSuggestedExercise(exercise) {
           {page === 'history' && <History masterExerciseList={masterExerciseList} />}
           {page === 'goals' && <GoalsTab masterExerciseList={masterExerciseList} />}
           {page === 'suggestions' && (
-            <ExerciseSuggestions activeWorkout={activeWorkout} setActiveWorkout={setActiveWorkout} />
+            <ExerciseSuggestions activeWorkout={activeWorkout} setActiveWorkout={setActiveWorkout}  navigateTo={navigateTo}/>
           )}
           {page === 'profile' && <Profile />}
           {page === 'connect' && <Connect onOpenMessage={handleOpenMessage} />}

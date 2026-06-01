@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import '../App.css'
 
-export default function ExerciseSuggestions({ activeWorkout, setActiveWorkout }) {
+export default function ExerciseSuggestions({ activeWorkout, setActiveWorkout, navigateTo }) {
   const [goalTypeKey, setGoalTypeKey] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -61,49 +61,22 @@ export default function ExerciseSuggestions({ activeWorkout, setActiveWorkout })
         ...activeWorkout,
         exercises: [...activeWorkout.exercises, newExercise]
       });
-      setSuccessBanner({
-        visible: true,
-        message: `Added "${item.name}" to your active session!`
-      });
     } else {
-      // Scenario B: no session → log it AND save as a reusable template
-      try {
-        const sessionName = `${readableGoalNames[goalTypeKey] || "Suggested"} Session`;
-
-        // Log as a real workout history entry
-        await fetch("http://localhost:5000/api/workouts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            name: sessionName,
-            datetime: new Date(),
-            isTemplate: false,
-            exercises: [newExercise]
-          })
-        });
-
-        // Also save as a reusable template in the Workouts tab
-        await fetch("http://localhost:5000/api/workouts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            name: `Suggested: ${item.name}`,
-            datetime: new Date(),
-            isTemplate: true,
-            exercises: [newExercise]
-          })
-        });
-
-        setSuccessBanner({
-          visible: true,
-          message: `Logged "${item.name}" to history and saved as a template!`
-        });
-      } catch (err) {
-        console.error("Failed to log exercise:", err);
-      }
+      // Scenario B: no session → initialize a new active session!
+      // We no longer POST to the DB here. We let the user do that on the Workouts page.
+      const sessionName = `${readableGoalNames[goalTypeKey] || "Suggested"} Session`;
+      
+      setActiveWorkout({
+        isEditing: false,
+        name: sessionName,
+        exercises: [newExercise]
+      });
     }
+
+    // Immediately route the user to the workouts tab
+    // IMPORTANT: Change '/workouts' to whatever your actual route path is in App.js!
+    navigateTo('workouts'); 
+    window.scrollTo(0, 0); // Resets scroll position to the top of the page for a clean UX
 
     setTimeout(() => setSuccessBanner({ visible: false, message: "" }), 3000);
   };
