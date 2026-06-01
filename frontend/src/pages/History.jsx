@@ -317,11 +317,11 @@ export default function History({ masterExerciseList = [] }) {
                   {isExpanded && (
                     <div style={{ marginTop: '10px', background: 'white', padding: '15px', borderRadius: '8px', border: '1px solid #38422B' }}>
                       <div style={{ display: 'flex', fontWeight: 'bold', paddingBottom: '5px', fontSize: '13px', color: '#38422B', textAlign: 'left' }}>
-                        <span style={{ flex: 2 }}>name</span>
-                        <span style={{ flex: 1 }}>weight</span>
-                        <span style={{ flex: 1 }}>reps</span>
-                        <span style={{ flex: 1 }}>sets</span>
-                        <span style={{ flex: 1 }}>time</span>
+                        <span style={{ flex: 2 }}>Name</span>
+                        <span style={{ flex: 1 }}>Weight</span>
+                        <span style={{ flex: 1 }}>Reps</span>
+                        <span style={{ flex: 1 }}>Sets</span>
+                        <span style={{ flex: 1 }}>Time (min)</span>
                       </div>
                       <hr style={{ margin: '5px 0 10px 0', border: '1px solid #38422B' }} />
 
@@ -367,7 +367,7 @@ export default function History({ masterExerciseList = [] }) {
                         <>
                           {log.exercises.map((ex, idx) => (
                             <div key={idx} style={{ display: 'flex', textAlign: 'left', padding: '6px 0', fontSize: '14px', borderBottom: '1px dashed #eee' }}>
-                              <span style={{ flex: 2, fontWeight: '500' }}>{ex.name || ex.exerciseId?.name || 'Unnamed Exercise'}</span>
+                              <span style={{ flex: 2, fontWeight: '500', textTransform: 'capitalize' }}>{ex.name || ex.exerciseId?.name || 'Unnamed Exercise'}</span>
                               <span style={{ flex: 1 }}>{ex.weight} lbs</span>
                               <span style={{ flex: 1 }}>{ex.reps} reps</span>
                               <span style={{ flex: 1 }}>{ex.sets} sets</span>

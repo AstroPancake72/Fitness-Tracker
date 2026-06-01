@@ -298,13 +298,13 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
               />
             </div>
 
-            <div style={{display: 'flex', fontWeight: 'bold', padding: '10px 10px 5px 10px', textAlign: 'left', fontSize: '14px'}}>
-              <span style={{flex: 3}}>name</span>
-              <span style={{flex: 1}}>weight</span>
-              <span style={{flex: 1}}>reps</span>
-              <span style={{flex: 1}}>sets</span>
-              <span style={{flex: 1}}>time (min)</span>
-              <span style={{width: '35px'}}></span>
+            <div className="exercise-row-grid" style={{ fontWeight: 'bold', padding: '10px 10px 5px 10px', textAlign: 'center', fontSize: '14px' }}>
+              <span>Name</span>
+              <span>Weight</span>
+              <span>Reps</span>
+              <span>Sets</span>
+              <span>Time (min)</span>
+              <span></span>
             </div>
             <hr style={{ border: '1px solid #38422B', marginBottom: '10px', marginTop: '0' }} />
 
@@ -313,39 +313,34 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
 
               return (
                 <div key={i} style={{ marginBottom: '12px' }}>
-                  <div style={{
+                  <div className="exercise-row-grid"style={{
                     ...exerciseRowStyle,
                     opacity: isFieldDisabled ? 0.85 : 1,
                     marginBottom: '0',
                     padding: isFieldDisabled ? '8px 10px' : '10px',
                   }}>
                     {isFieldDisabled ? (
-                      <span style={{
-                        flex: 3,
-                        fontWeight: 'bold',
-                        fontSize: '14px',
-                        textTransform: 'capitalize',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        minWidth: 0
-                      }}>
-                        {ex.name}
-                      </span>
+                      <input 
+                        type="text"
+                        className="exercise-input exercise-name-input"
+                        value={ex.name}
+                        readOnly
+                        style={{ fontWeight: 'bold', textTransform: 'capitalize', cursor: 'default' }}
+                      />
                     ) : (
                       <ExerciseAutocomplete
                         value={ex.name}
-                        style={{ flex: 3 }}
+                        className="exercise-input exercise-name-input"
                         onChange={(val) => updateExercise(i, 'name', val)}
                         masterList={masterExerciseList}
                         placeholder="Exercise..."
                       />
                     )}
 
-                    <input type="number" value={ex.weight === 0 ? "" : ex.weight} placeholder="0" onChange={(e) => updateExercise(i, 'weight', e.target.value)} style={{flex: 1, maxWidth: '90px'}} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
-                    <input type="number" value={ex.reps === 0 ? "" : ex.reps} placeholder="0" onChange={(e) => updateExercise(i, 'reps', e.target.value)} style={{flex: 1, maxWidth: '90px'}} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
-                    <input type="number" value={ex.sets === 0 ? "" : ex.sets} placeholder="0" onChange={(e) => updateExercise(i, 'sets', e.target.value)} style={{flex: 1, maxWidth: '90px'}} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
-                    <input type="number" value={ex.time === 0 ? "" : ex.time} placeholder="0" onChange={(e) => updateExercise(i, 'time', e.target.value)} style={{flex: 1, maxWidth: '90px'}} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
+                    <input className="exercise-input" type="number" value={ex.weight === 0 ? "" : ex.weight} placeholder="0" onChange={(e) => updateExercise(i, 'weight', e.target.value)} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
+                    <input className="exercise-input" type="number" value={ex.reps === 0 ? "" : ex.reps} placeholder="0" onChange={(e) => updateExercise(i, 'reps', e.target.value)} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
+                    <input className="exercise-input" type="number" value={ex.sets === 0 ? "" : ex.sets} placeholder="0" onChange={(e) => updateExercise(i, 'sets', e.target.value)} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
+                    <input className="exercise-input" type="number" value={ex.time === 0 ? "" : ex.time} placeholder="0" onChange={(e) => updateExercise(i, 'time', e.target.value)} disabled={isFieldDisabled} onFocus={(e) => e.target.select()} />
 
                     {!isFieldDisabled ? (
                       <button onClick={() => openDeleteModal('exercise', i)} style={deleteBtnStyle}>✕</button>
@@ -377,7 +372,7 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
 
 const itemStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#F5F1E8', padding: '15px', borderRadius: '15px', marginBottom: '10px', border: '1px solid #38422B' }
 const sessionBoxStyle = { width: '100%', background: '#F5F1E8', padding: '20px', borderRadius: '20px', border: '2px solid #38422B', overflow: 'visible' }
-const exerciseRowStyle = { display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px', background: 'white', padding: '10px', borderRadius: '8px', overflow: 'visible' }
+const exerciseRowStyle = { background: 'white', borderRadius: '8px', overflow: 'visible' }
 const deleteBtnStyle = { width: '30px', height: '30px', minWidth: '30px', minHeight: '30px', borderRadius: '50%', background: '#8B0000', color: 'white', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0', lineHeight: '1', fontSize: '16px', flexShrink: 0 }
 const modalOverlayStyle = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }
 const modalBoxStyle = { background: '#fff', padding: '30px', borderRadius: '15px', textAlign: 'center', width: '300px', border: '2px solid #38422B' }

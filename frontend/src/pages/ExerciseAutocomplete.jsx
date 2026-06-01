@@ -48,21 +48,11 @@ export default function ExerciseAutocompleteInput({ value, onChange, masterList 
 
   return (
     <div ref={containerRef} style={{ position: "relative", flex: style.flex ?? 2, ...style }}>
-      <input
+      <input className="exercise-input exercise-name-input"
         ref={inputRef}
         value={value}
         onChange={handleChange}
         placeholder={placeholder}
-        style={{
-          width: "100%",
-          border: "none",
-          background: "transparent",
-          outline: "none",
-          fontSize: "inherit",
-          fontFamily: "inherit",
-          color: "inherit",
-          padding: 0,
-        }}
       />
       {dropdown.length > 0 && createPortal(
         <div style={{
