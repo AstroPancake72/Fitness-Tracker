@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import '../App.css'
 import ExerciseAutocomplete from "./ExerciseAutocomplete";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
+
 
 export default function History({ masterExerciseList = [] }) {
   const [workouts, setWorkouts] = useState([])
@@ -144,13 +147,50 @@ export default function History({ masterExerciseList = [] }) {
     setDeleteModal({ isOpen: false, targetId: null })
   }
 
+ async function exportToPDF() {
+  const pdf = new jsPDF('p', 'mm', 'a4');
+  const metrics = Object.keys(yAxisLabels);
+  
+  const container = document.getElementById('full-report-container');
+  container.style.display = 'block';
+
+  for (let i = 0; i < metrics.length; i++) {
+    const metric = metrics[i];
+    const chartElement = document.getElementById(`chart-${metric}`);
+    
+    if (chartElement) {
+      const canvas = await html2canvas(chartElement, { scale: 1.5 });
+      
+      const imgData = canvas.toDataURL('image/jpeg', 0.7); 
+      
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth() - 20; 
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      
+      const isFirstOnPage = i % 2 === 0;
+      const yPosition = isFirstOnPage ? 20 : 150; 
+
+      if (i > 0 && isFirstOnPage) {
+        pdf.addPage();
+      }
+      
+      pdf.text(yAxisLabels[metric], 10, yPosition - 5); // Slightly adjusted title spacing
+      
+      pdf.addImage(imgData, 'JPEG', 10, yPosition, pdfWidth, pdfHeight);
+    }
+  }
+  
+  container.style.display = 'none';
+  pdf.save(`${selectedExercise}_Report.pdf`);
+}
+
+
   const graphData = buildGraphData()
   const yAxisLabels = { weight: "Weight (lbs)", reps: "Reps", sets: "Sets", time: "Time (min)", score: "Score" }
 
   return (
     <div className="login-container" style={{ maxWidth: '900px' }}>
 
-      {/* DELETE MODAL */}
       {deleteModal.isOpen && (
         <div style={modalOverlayStyle}>
           <div style={modalBoxStyle}>
@@ -173,10 +213,15 @@ export default function History({ masterExerciseList = [] }) {
       )}
 
       {selectedExercise ? (
-        <div style={{ width: '100%' }}>
+        <div id="exercise-view-container" style={{ width: '100%' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h2 style={{ margin: 0, color: '#38422B', fontSize: '24px' }}>{selectedExercise}</h2>
-            <button className="counter" onClick={closeGraph} style={{ width: 'auto', minWidth: '90px', padding: '8px 20px', margin: 0 }}>← Back</button>
+            <h2 style={{ margin: 0, color: '#38422B', fontSize: '24px' }}>
+                {selectedExercise} - {yAxisLabels[yAxis]}
+            </h2>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button className="counter" onClick={exportToPDF} style={{ width: 'auto', background: '#38422B', color: 'white', padding: '8px 20px' }}>Save PDF</button>
+              <button className="counter" onClick={closeGraph} style={{ width: 'auto', minWidth: '90px', padding: '8px 20px', margin: 0 }}>← Back</button>
+            </div>
           </div>
           <h4 style={{ textAlign: 'left', margin: '0 0 10px 4px', color: '#38422B', fontSize: '14px', letterSpacing: '0.5px', textTransform: 'uppercase', opacity: 0.8 }}>Graph Metrics</h4>
           <div style={{ display: 'flex', gap: '8px', marginBottom: '25px', flexWrap: 'wrap' }}>
@@ -192,7 +237,7 @@ export default function History({ masterExerciseList = [] }) {
               {graphData.length === 0 ? `No sessions found for "${selectedExercise}".` : `Only one session found. Log more workouts to see progress!`}
             </div>
           ) : (
-            <div style={{ background: '#F5F1E8', border: '1px solid #38422B', borderRadius: '12px', padding: '20px' }}>
+            <div id="graph-container" style={{ background: '#F5F1E8', border: '1px solid #38422B', borderRadius: '12px', padding: '20px' }}>
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={graphData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#CCD5C0" />
@@ -248,7 +293,6 @@ export default function History({ masterExerciseList = [] }) {
               const isEditing = editingWorkout?._id === log._id
               return (
                 <div key={log._id} style={{ ...itemStyle, flexDirection: 'column', alignItems: 'stretch', gap: '10px' }}>
-                  {/* HEADER ROW — same layout as Workouts tab */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ textAlign: 'left' }}>
                       <div style={{ fontWeight: 'bold', fontSize: '18px' }}>{log.name}</div>
@@ -276,7 +320,6 @@ export default function History({ masterExerciseList = [] }) {
                     </div>
                   </div>
 
-                  {/* EXPANDED CONTENT */}
                   {isExpanded && (
                     <div style={{ background: 'white', padding: '15px', borderRadius: '8px', border: '1px solid #38422B' }}>
                       <div style={{ display: 'flex', fontWeight: 'bold', paddingBottom: '5px', fontSize: '13px', color: '#38422B', textAlign: 'left' }}>
@@ -340,6 +383,25 @@ export default function History({ masterExerciseList = [] }) {
           )}
         </div>
       )}
+{selectedExercise && (
+  <div id="full-report-container" style={{ display: 'none' }}>
+    <h2 style={{ padding: '20px' }}>{selectedExercise} Progress Report</h2>
+    {Object.keys(yAxisLabels).map((metric) => (
+      <div key={metric} id={`chart-${metric}`} style={{ marginBottom: '40px' }}>
+        <h3>{yAxisLabels[metric]}</h3>
+        <ResponsiveContainer width={600} height={300}>
+          <LineChart data={graphData}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="date" />
+            <YAxis />
+            <Line type="monotone" dataKey={metric} stroke="#38422B" strokeWidth={2} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    ))}
+  </div>
+)}
+
     </div>
   )
 }
