@@ -71,7 +71,9 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   twoFactorCode: { type: String },
-  twoFactorExpires: { type: Date }
+  twoFactorExpires: { type: Date },
+  resetPasswordCode: { type: String },
+  resetPasswordExpires: { type: Date }
 });
 const User = mongoose.model("User", userSchema);
 
@@ -281,7 +283,6 @@ app.post("/api/login", async (req, res) => {
       subject: "Your Fitness Tracker Login Code",
       text: `Your 6-digit login code is: ${code}. It expires in 10 minutes.`
     });
-    // Tell the frontend to show the 2FA screen
     res.status(200).json({ message: "Code sent", requires2FA: true });
 
   } catch (err) {
@@ -294,22 +295,16 @@ app.post("/api/verify-2fa", async (req, res) => {
   try {
     const { email, code } = req.body;
     const user = await User.findOne({ email });
-
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-
-    // Check if code matches and isn't expired
     if (user.twoFactorCode !== code || user.twoFactorExpires < Date.now()) {
       return res.status(400).json({ message: "Invalid or expired code" });
     }
-
-    // Clear the code from the database so it can't be reused
     user.twoFactorCode = undefined;
     user.twoFactorExpires = undefined;
     req.session.userId = user._id;
     await user.save();
-
     res.status(200).json({ message: "Login successful", user: { email: user.email } });
   } catch (err) {
     console.error(err);
@@ -347,15 +342,20 @@ app.post("/api/forgot-password", async (req, res) => {
 app.post("/api/reset-password", async (req, res) => {
   try {
     const { email, code, newPassword } = req.body;
-    const user = await User.findOne({ email });
+        const user = await User.findOne({ email });
 
-    if (!user || !user.resetPasswordCode || user.resetPasswordCode !== code || user.resetPasswordExpires < Date.now()) {
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    if (user.resetPasswordCode !== code || user.resetPasswordExpires < Date.now()) {
       return res.status(400).json({ message: "Invalid or expired reset code." });
     }
 
-    user.password = await bcrypt.hash(newPassword, 10); //in-place update
+    user.password = await bcrypt.hash(newPassword, 10);
     user.resetPasswordCode = undefined;
     user.resetPasswordExpires = undefined;
+    
     await user.save();
 
     res.status(200).json({ message: "Password updated successfully!" });
@@ -363,11 +363,6 @@ app.post("/api/reset-password", async (req, res) => {
     console.error(err);
     res.status(500).json({ message: "Failed to reset password." });
   }
-});
-app.get("/api/me", async (req, res) => {
-  if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
-  const user = await User.findById(req.session.userId).select("-password");
-  res.json({ user });
 });
 
 app.post("/api/logout", (req, res) => {
@@ -457,7 +452,6 @@ app.put("/api/workouts/:id", async (req, res) => {
 app.delete("/api/workouts/:id", async (req, res) => {
   if (!req.session.userId) return res.status(401).json({ message: "Not logged in" });
   try {
-    // Ensure the workout belongs to the user before deleting
     const deletedWorkout = await Workout.findOneAndDelete({ 
       _id: req.params.id, 
       userId: req.session.userId 
