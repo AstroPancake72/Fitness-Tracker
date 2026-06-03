@@ -4,7 +4,6 @@ const exerciseData = require("../exerciseData.json");
 
 const router = express.Router();
 
-let suggestionsCache = {};
 
 router.get("/exercises", (req, res) => {
   if (!req.session.userId) {
@@ -27,16 +26,7 @@ router.get("/exercise-suggestions", async (req, res) => {
     }).sort({ createdAt: -1 });
 
     const userCategory = latestGoal?.macroCategory || "STRENGTH";
-    const currentTime = Date.now();
-
-    if (suggestionsCache[userCategory] && currentTime < suggestionsCache[userCategory].expirationTime) {
-      console.log(`Serving cached suggestions for category: ${userCategory}`);
-
-      return res.json({
-        goal: userCategory,
-        suggestions: suggestionsCache[userCategory].data,
-      });
-    }
+    
 
     let rawData = [];
 
@@ -50,7 +40,7 @@ router.get("/exercise-suggestions", async (req, res) => {
       rawData = exerciseData;
     }
 
-    const suggestions = rawData.slice(0, 5).map((exercise) => {
+    const suggestions = rawData.map((exercise) => {
       const isCardio = exercise.bodyPart === "cardio";
       let baselineWeight = 0;
 
@@ -69,11 +59,6 @@ router.get("/exercise-suggestions", async (req, res) => {
         time: isCardio ? 25 : null,
       };
     });
-
-    suggestionsCache[userCategory] = {
-      data: suggestions,
-      expirationTime: currentTime + 5 * 60 * 1000,
-    };
 
     res.json({
       goal: userCategory,
