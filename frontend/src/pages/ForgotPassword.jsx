@@ -1,133 +1,110 @@
 import { useState } from "react";
 
+const PASSWORD_RULES = [
+  { label: "At least 8 characters", test: (p) => p.length >= 8 },
+  { label: "At least one uppercase", test: (p) => /[A-Z]/.test(p) },
+  { label: "At least one lowercase", test: (p) => /[a-z]/.test(p) },
+  { label: "At least one number",    test: (p) => /\d/.test(p) },
+  { label: "At least one special",   test: (p) => /[^A-Za-z0-9]/.test(p) },
+];
+
 export default function ForgotPassword({ onBack }) {
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [codeSent, setCodeSent] = useState(false);
+  const [step, setStep] = useState("REQUEST_CODE");
+  const [form, setForm] = useState({ email: "", code: "", newPassword: "" });
+  const [status, setStatus] = useState({ message: "", isError: false });
   const [showPassword, setShowPassword] = useState(false);
-  const [message, setMessage] = useState("");
-  const [isError, setIsError] = useState(false);
 
-  function getPasswordChecks(password) {
-    return [
-      { label: "At least 8 characters", valid: password.length >= 8 },
-      { label: "At least one uppercase letter", valid: /[A-Z]/.test(password) },
-      { label: "At least one lowercase letter", valid: /[a-z]/.test(password) },
-      { label: "At least one number", valid: /\d/.test(password) },
-      { label: "At least one special character", valid: /[^A-Za-z0-9]/.test(password) },
-    ];
-  }
+  const validation = PASSWORD_RULES.map(rule => ({
+    ...rule,
+    valid: rule.test(form.newPassword)
+  }));
+  const isPasswordValid = validation.every(r => r.valid);
 
-  const passwordChecks = getPasswordChecks(newPassword);
-  const isPasswordValid = passwordChecks.every((check) => check.valid);
+  const updateForm = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
-  async function handleRequestCode(e) {
-    e.preventDefault();
+  async function handleSubmit(endpoint, body, onSuccess) {
     try {
-      const response = await fetch("http://localhost:5000/api/forgot-password", {
+      const res = await fetch(`http://localhost:5000/api/${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify(body),
       });
-      const data = await response.json();
-      setIsError(!response.ok);
-      setMessage(data.message);
-      if (response.ok) setCodeSent(true);
-    } catch (error) {
-      setIsError(true);
-      setMessage("Server error. Try again later.");
-    }
-  }
-
-  async function handleResetPassword(e) {
-    e.preventDefault();
-    if (!isPasswordValid) return;
-
-    try {
-      const response = await fetch("http://localhost:5000/api/reset-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code, newPassword }),
-      });
-      const data = await response.json();
-      setIsError(!response.ok);
-      setMessage(data.message);
-      if (response.ok) {
-        setCode("");
-        setNewPassword("");
-      }
-    } catch (error) {
-      setIsError(true);
-      setMessage("Server error. Try again later.");
+      const data = await res.json();
+      setStatus({ message: data.message, isError: !res.ok });
+      if (res.ok) onSuccess();
+    } catch {
+      setStatus({ message: "Server error. Try again later.", isError: true });
     }
   }
 
   return (
     <div className="login-container">
-      <h1 style={{ marginBottom: '10px' }}>Fitness Tracker</h1>
-      <h2 className="login-subtitle" style={{ marginBottom: '10px' }}>Reset Password</h2>
-      
-      {!codeSent ? (
-        <form onSubmit={handleRequestCode}>
-          <p style={{ fontSize: '14px' }}>Enter email to receive a verification pin.</p>
-          <input type="email" placeholder="Email Address" value={email} onChange={(e) => setEmail(e.target.value)} required />
+      <h1>Fitness Tracker</h1>
+      <h2>Reset Password</h2>
+
+      {step === "REQUEST_CODE" ? (
+        <form onSubmit={(e) => { e.preventDefault(); handleSubmit("forgot-password", { email: form.email }, () => setStep("RESET_PASSWORD")); }}>
+          <p>Enter email to receive a verification pin.</p>
+          <input type="email" placeholder="Email" value={form.email} onChange={(e) => updateForm("email", e.target.value)} required />
           <button type="submit">Send Reset Code</button>
         </form>
       ) : (
-        <form onSubmit={handleResetPassword}>
-          <input type="text" placeholder="6-Digit Code" value={code} onChange={(e) => setCode(e.target.value)} required />
+        <form onSubmit={(e) => { e.preventDefault(); handleSubmit("reset-password", form, () => onBack()); }}>
+          <input type="text" placeholder="6-Digit Code" value={form.code} onChange={(e) => updateForm("code", e.target.value)} required />
           
-          <div style={{ display: 'flex', alignItems: 'center', position: 'relative', width: '100%' }}>
-            <input
-              type={showPassword ? "text" : "password"} 
-              placeholder="New Password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              style={{ paddingRight: '60px', width: '100%' }} 
-            />
-            <button
-              type="button" 
-              onClick={() => setShowPassword(!showPassword)}
-              style={{
-                position: 'absolute',
-                right: '20px',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: 'bold',
-                color: '#38422B', 
-                padding: '4px',
-                margin: 0,
-                width: 'auto',
-                boxShadow: 'none',
-                marginTop: '10px',
-              }}
-            >
-              {showPassword ? "Hide" : "Show"} 
-            </button>
-          </div>
+<div style={{ 
+  position: 'relative', 
+  width: '100%', 
+  display: 'flex', 
+  alignItems: 'center' 
+}}>
+  <input 
+    type={showPassword ? "text" : "password"} 
+    placeholder="New Password" 
+    value={form.newPassword} 
+    onChange={(e) => updateForm("newPassword", e.target.value)} 
+    style={{ 
+      width: '100%', 
+      paddingRight: '60px', 
+      boxSizing: 'border-box' 
+    }} 
+  />
+  <button 
+  type="button" 
+  onClick={() => setShowPassword(!showPassword)}
+  style={{
+    position: 'absolute',
+    right: '10px',      
+    top: '50%',       
+    transform: 'translateY(-50%)', 
+    background: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    color: '#38422B',
+    fontWeight: 'bold',
+    zIndex: 1,
+    margin: 0,          
+    padding: '5px 10px',
+    width: 'auto',      
+    flexShrink: 0       
+  }}
+>
+  {showPassword ? "Hide" : "Show"}
+</button>
+</div>
 
-          <ul className="password-rules" style={{ textAlign: 'left', listStyle: 'none', padding: 0, margin: '10px 0' }}>
-            {passwordChecks.map((check) => (
-              <li key={check.label} style={{ fontSize: '13px', color: check.valid ? '#38422B' : '#777' }}>
-                {check.valid ? "✓ " : "○ "} {check.label}
-              </li>
+          <ul className="password-rules">
+            {validation.map(({ label, valid }) => (
+              <li key={label} className={valid ? "valid" : "invalid"}>{valid ? "✓" : "○"} {label}</li>
             ))}
           </ul>
 
-          <button type="submit" disabled={!isPasswordValid} style={{ marginTop: '10px' }}>
-            Update Password
-          </button>
+          <button type="submit" disabled={!isPasswordValid}>Update Password</button>
         </form>
       )}
 
-      {message && <p className={isError ? "error" : "success-message"} style={{ marginTop: '10px' }}>{message}</p>}
-
-      <p className="signup-prompt">
-        <button type="button" onClick={onBack} className="link-button">Back to Login</button>
-      </p>
+      {status.message && <p className={status.isError ? "error" : "success"}>{status.message}</p>}
+      <button onClick={onBack} className="link-button">Back to Login</button>
     </div>
   );
 }

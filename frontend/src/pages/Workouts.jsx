@@ -234,7 +234,6 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
       });
 
       fetchWorkouts();
-      // Don't clear activeWorkout — session continues
       setSaveTemplateBanner(true);
       setTimeout(() => setSaveTemplateBanner(false), 2500);
     } catch (err) {
@@ -404,11 +403,11 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
             })}
 
             {saveTemplateBanner && (
-  <div style={{ background: '#E1EAD6', color: '#38422B', padding: '10px', borderRadius: '8px', 
-    borderLeft: '4px solid #38422B', marginBottom: '12px', fontWeight: 'bold', fontSize: '13px' }}>
-    ✓ Template updated!
-  </div>
-)}
+             <div style={{ background: '#E1EAD6', color: '#38422B', padding: '10px', borderRadius: '8px', 
+               borderLeft: '4px solid #38422B', marginBottom: '12px', fontWeight: 'bold', fontSize: '13px' }}>
+               ✓ Template updated!
+              </div>
+              )}
           <button className="counter" style={{width: '100%', background: 'transparent', color: '#38422B', border: '1px dashed #38422B', marginBottom: '20px'}}
             onClick={() => setActiveWorkout({...activeWorkout, exercises: [...activeWorkout.exercises, {name: "", weight: 0, reps: 0, sets: 0, time: 0, isOriginal: false}]})}>
             {activeWorkout.isEditing ? "+ Add Exercise to Template" : "+ Add Exercise to Session"}
