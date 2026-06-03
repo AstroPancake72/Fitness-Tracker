@@ -518,25 +518,43 @@ app.put("/api/profile", async (req, res) => {
   }
 });
 
-app.post("/api/profile/image", upload.single("profileImage"), async (req, res) => {
+function requireLogin(req, res, next) {
   if (!req.session.userId) {
     return res.status(401).json({ message: "Not logged in" });
   }
 
-  if (!req.file) {
-    return res.status(400).json({ message: "No image uploaded" });
+  next();
+}
+
+app.post(
+  "/api/profile/image",
+  requireLogin,
+  upload.single("profileImage"),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No image uploaded" });
+      }
+
+      const profileImagePath = `/uploads/${req.file.filename}`;
+
+      const updatedProfile = await Profile.findOneAndUpdate(
+        { userId: req.session.userId },
+        { profileImage: profileImagePath },
+        { returnDocument: "after", upsert: true, runValidators: true }
+      );
+
+      res.json({
+        message: "Profile image uploaded successfully",
+        profileImage: updatedProfile.profileImage,
+        profile: updatedProfile,
+      });
+    } catch (error) {
+      console.error("Profile image upload error:", error);
+      res.status(500).json({ message: "Failed to upload profile image" });
+    }
   }
-
-  const imagePath = `/uploads/${req.file.filename}`;
-
-  const updatedProfile = await Profile.findOneAndUpdate(
-    { userId: req.session.userId },
-    { profileImage: imagePath },
-    { returnDocument: "after", upsert: true }
-  );
-
-  res.json(updatedProfile);
-});
+);
 
 function calculateTargetCalories(profile) {
   const weight = Number(profile.weight);
