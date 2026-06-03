@@ -36,8 +36,8 @@ test.describe('Fitness Tracker E2E Flows', () => {
 
     //Go to Suggestions, add recommended exercise, and log session
     await page.getByTestId('nav-suggestions').click();
-    await page.waitForSelector('button:has-text("+ Add Exercise")', { timeout: 30000 });
-    await page.locator('button:has-text("+ Add Exercise")').first().click();
+    await page.waitForSelector('button:has-text("Add")', { timeout: 30000 });
+    await page.locator('button:has-text("Add")').first().click();
 
     //Log the session
     await page.getByTestId('save-session-btn').click();
