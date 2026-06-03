@@ -261,7 +261,7 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
       {!activeWorkout ? (
         <div style={{ width: '100%' }}>
           {!showAddRoutine ? (
-            <button className="counter" style={{width: '100%', marginBottom: '20px'}} onClick={() => setShowAddRoutine(true)}>
+            <button data-testid="create-template-btn" name="Create New Routine Template" className="counter" style={{width: '100%', marginBottom: '20px'}} onClick={() => setShowAddRoutine(true)}>
               + Create New Routine Template
             </button>
           ) : (
@@ -304,7 +304,7 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
                 </div>
               </div>
               <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
-                <button className="counter" onClick={() => startWorkout(r)}>Start</button>
+                <button data-testid={`start-workout-${r._id}`} className="counter" onClick={() => startWorkout(r)}>Start</button>
                 <button className="counter" onClick={() => editWorkout(r)}>Edit</button>
                 <button className="counter" style={{background: '#8B0000', ...deleteBtnStyle}} onClick={() => openDeleteModal('routine', r._id)}>✕</button>
               </div>
@@ -424,7 +424,7 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
               </button>
             )}
             
-            <button className="counter" style={{flex: 2}} onClick={activeWorkout.isEditing ? saveWorkout : saveWorkout}>
+            <button data-testid="save-session-btn" className="counter" style={{flex: 2}} onClick={activeWorkout.isEditing ? saveWorkout : saveWorkout}>
               {activeWorkout.isEditing ? "Save Template Config" : "Log Session to History"}
             </button>
           </div>

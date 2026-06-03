@@ -157,10 +157,10 @@ async function handleSelectSuggestedExercise(exercise) {
         <div>
 
           <nav style={{ display: 'flex', gap: 12, padding: 12, justifyContent: 'center', background: '#CCD5C0', borderBottom: '2px solid #38422B' }}>
-            <button onClick={() => navigateTo('workouts')} className="counter" style={page === 'workouts' ? activeNavBtn : {}}>Workouts</button>
-            <button onClick={() => navigateTo('history')} className="counter" style={page === 'history' ? activeNavBtn : {}}>History</button>
-            <button onClick={() => navigateTo('goals')} className="counter" style={page === 'goals' ? activeNavBtn : {}}>Goals</button>
-            <button onClick={() => navigateTo('suggestions')} className="counter" style={page === 'suggestions' ? activeNavBtn : {}}>Exercise Suggestions</button>
+            <button data-testid="nav-workouts" onClick={() => navigateTo('workouts')} className="counter" style={page === 'workouts' ? activeNavBtn : {}}>Workouts</button>
+            <button data-testid="nav-history" onClick={() => navigateTo('history')} className="counter" style={page === 'history' ? activeNavBtn : {}}>History</button>
+            <button data-testid="nav-goals" onClick={() => navigateTo('goals')} className="counter" style={page === 'goals' ? activeNavBtn : {}}>Goals</button>
+            <button data-testid="nav-suggestions" onClick={() => navigateTo('suggestions')} className="counter" style={page === 'suggestions' ? activeNavBtn : {}}>Exercise Suggestions</button>
             <button onClick={() => navigateTo('profile')} className="counter" style={page === 'profile' ? activeNavBtn : {}}>Profile</button>
             <button onClick={() => navigateTo('connect')} className="counter" style={page === 'connect' ? activeNavBtn : {}}>Connect</button>
             <button onClick={() => setPage('diet')} className="counter"> Diet Suggestions</button>
