@@ -73,7 +73,6 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
       isOriginal: true
     }));
 
-    // Scenario A: no active workout → just start it
     if (!activeWorkout) {
       setActiveWorkout({
         isEditing: false,
@@ -84,13 +83,11 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
       return;
     }
 
-    // Scenario B: workout already in progress → ask user
     const choice = window.confirm(
       `You already have "${activeWorkout.name}" in progress.\n\nClick OK to append "${baseline.name}" to your current session.\nClick Cancel to discard your current session and start fresh.`
     );
 
     if (choice) {
-      // Append template exercises to existing session
       setActiveWorkout({
         ...activeWorkout,
         exercises: [
@@ -99,7 +96,6 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
         ]
       });
     } else {
-      // Discard and start fresh
       setActiveWorkout({
         isEditing: false,
         templateId: baseline._id,
@@ -149,7 +145,6 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
       return;
     }
 
-    // Define cleanedExercises FIRST before any branching
     const cleanedExercises = allValidExercises.map(({ isOriginal, ...rest }) => ({
       ...rest,
       weight: rest.weight === "" ? 0 : Number(rest.weight),
