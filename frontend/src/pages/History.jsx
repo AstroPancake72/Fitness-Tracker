@@ -115,7 +115,7 @@ export default function History({ masterExerciseList = [] }) {
           datetime: editingWorkout.datetime,
           exercises: editingWorkout.exercises,
           isTemplate: false,
-          isSuggested: editingWorkout.isSuggested || false // FIXED: Keeps flag alive on database update
+          isSuggested: editingWorkout.isSuggested || false 
         })
       })
       if (res.ok) {
@@ -221,7 +221,7 @@ export default function History({ masterExerciseList = [] }) {
             </h2>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button className="counter" onClick={exportToPDF} style={{ width: 'auto', background: '#38422B', color: 'white', padding: '8px 20px' }}>Save PDF</button>
-              <button className="counter" onClick={closeGraph} style={{ width: 'auto', minWidth: '90px', padding: '8px 20px', margin: 0 }}>← Back</button>
+              <button className="counter" onClick={closeGraph} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '23px', width: 'auto', height: 'auto', padding: '8px 20px', margin: '0 0 0 10px' }}> ← Back</button>
             </div>
           </div>
           <h4 style={{ textAlign: 'left', margin: '0 0 10px 4px', color: '#38422B', fontSize: '14px', letterSpacing: '0.5px', textTransform: 'uppercase', opacity: 0.8 }}>Graph Metrics</h4>
@@ -300,7 +300,6 @@ export default function History({ masterExerciseList = [] }) {
                       <div style={{ fontSize: '12px', color: '#666' }}>
                         {new Date(log.datetime).toLocaleDateString()} at {new Date(log.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
-                      {/* FIXED: Added Recommended vs Custom Badge Display here */}
                       <div style={{ fontSize: '12px', color: '#38422B', fontWeight: '500', marginTop: '4px' }}>
                         {log.isSuggested ? "★ Recommended" : "Custom"}
                       </div>
@@ -313,7 +312,6 @@ export default function History({ masterExerciseList = [] }) {
                         {isExpanded ? "Hide" : "View"}
                       </button>
                       <button className="counter" onClick={() => {
-                        // FIXED: Preserves flag values into editing state context
                         setEditingWorkout({ ...log, isSuggested: log.isSuggested || false })
                         setExpandedHistoryId(log._id)
                       }}>

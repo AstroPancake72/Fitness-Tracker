@@ -192,7 +192,7 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
           datetime: new Date(),
           exercises: cleanedExercises,
           isTemplate: false,
-          isSuggested: activeWorkout.isSuggested || false // FIXED: Passes flag to the history document safely
+          isSuggested: activeWorkout.isSuggested || false 
         }),
       });
 

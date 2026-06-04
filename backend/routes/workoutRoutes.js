@@ -9,7 +9,7 @@ router.post("/", async (req, res) => {
   }
 
   try {
-    // FIX 1: Explicitly pull isSuggested from req.body
+    
     const { name, datetime, exercises, isTemplate, isSuggested } = req.body;
     if (!name || !exercises || !Array.isArray(exercises)) {
       return res.status(400).json({ message: "Invalid workout data" });
@@ -20,7 +20,7 @@ router.post("/", async (req, res) => {
       name,
       datetime: datetime || new Date(),
       isTemplate: isTemplate || false,
-      isSuggested: isSuggested || false, // FIX 2: Map it to your Mongoose model here
+      isSuggested: isSuggested || false, 
       exercises,
     });
 
