@@ -9,7 +9,8 @@ router.post("/", async (req, res) => {
   }
 
   try {
-    const { name, datetime, exercises, isTemplate } = req.body;
+    // FIX 1: Explicitly pull isSuggested from req.body
+    const { name, datetime, exercises, isTemplate, isSuggested } = req.body;
     if (!name || !exercises || !Array.isArray(exercises)) {
       return res.status(400).json({ message: "Invalid workout data" });
     }
@@ -19,6 +20,7 @@ router.post("/", async (req, res) => {
       name,
       datetime: datetime || new Date(),
       isTemplate: isTemplate || false,
+      isSuggested: isSuggested || false, // FIX 2: Map it to your Mongoose model here
       exercises,
     });
 
@@ -48,7 +50,7 @@ router.get("/", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   const { id } = req.params;
-  const { name, originalName, datetime, exercises, isTemplate } = req.body;
+  const { name, originalName, datetime, exercises, isTemplate, isSuggested } = req.body;
 
   try {
     if (originalName && originalName !== name) {
@@ -57,7 +59,7 @@ router.put("/:id", async (req, res) => {
 
     const updatedWorkout = await Workout.findByIdAndUpdate(
       id,
-      { name, datetime, exercises, isTemplate },
+      { name, datetime, exercises, isTemplate, isSuggested },
       { returnDocument: "after", runValidators: true }
     );
 

@@ -114,7 +114,8 @@ export default function History({ masterExerciseList = [] }) {
           name: editingWorkout.name,
           datetime: editingWorkout.datetime,
           exercises: editingWorkout.exercises,
-          isTemplate: false
+          isTemplate: false,
+          isSuggested: editingWorkout.isSuggested || false // FIXED: Keeps flag alive on database update
         })
       })
       if (res.ok) {
@@ -147,42 +148,42 @@ export default function History({ masterExerciseList = [] }) {
     setDeleteModal({ isOpen: false, targetId: null })
   }
 
- async function exportToPDF() {
-  const pdf = new jsPDF('p', 'mm', 'a4');
-  const metrics = Object.keys(yAxisLabels);
-  
-  const container = document.getElementById('full-report-container');
-  container.style.display = 'block';
-
-  for (let i = 0; i < metrics.length; i++) {
-    const metric = metrics[i];
-    const chartElement = document.getElementById(`chart-${metric}`);
+  async function exportToPDF() {
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const metrics = Object.keys(yAxisLabels);
     
-    if (chartElement) {
-      const canvas = await html2canvas(chartElement, { scale: 1.5 });
-      
-      const imgData = canvas.toDataURL('image/jpeg', 0.7); 
-      
-      const imgProps = pdf.getImageProperties(imgData);
-      const pdfWidth = pdf.internal.pageSize.getWidth() - 20; 
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      
-      const isFirstOnPage = i % 2 === 0;
-      const yPosition = isFirstOnPage ? 20 : 150; 
+    const container = document.getElementById('full-report-container');
+    container.style.display = 'block';
 
-      if (i > 0 && isFirstOnPage) {
-        pdf.addPage();
+    for (let i = 0; i < metrics.length; i++) {
+      const metric = metrics[i];
+      const chartElement = document.getElementById(`chart-${metric}`);
+      
+      if (chartElement) {
+        const canvas = await html2canvas(chartElement, { scale: 1.5 });
+        
+        const imgData = canvas.toDataURL('image/jpeg', 0.7); 
+        
+        const imgProps = pdf.getImageProperties(imgData);
+        const pdfWidth = pdf.internal.pageSize.getWidth() - 20; 
+        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        
+        const isFirstOnPage = i % 2 === 0;
+        const yPosition = isFirstOnPage ? 20 : 150; 
+
+        if (i > 0 && isFirstOnPage) {
+          pdf.addPage();
+        }
+        
+        pdf.text(yAxisLabels[metric], 10, yPosition - 5); 
+        
+        pdf.addImage(imgData, 'JPEG', 10, yPosition, pdfWidth, pdfHeight);
       }
-      
-      pdf.text(yAxisLabels[metric], 10, yPosition - 5); // Slightly adjusted title spacing
-      
-      pdf.addImage(imgData, 'JPEG', 10, yPosition, pdfWidth, pdfHeight);
     }
+    
+    container.style.display = 'none';
+    pdf.save(`${selectedExercise}_Report.pdf`);
   }
-  
-  container.style.display = 'none';
-  pdf.save(`${selectedExercise}_Report.pdf`);
-}
 
 
   const graphData = buildGraphData()
@@ -299,6 +300,10 @@ export default function History({ masterExerciseList = [] }) {
                       <div style={{ fontSize: '12px', color: '#666' }}>
                         {new Date(log.datetime).toLocaleDateString()} at {new Date(log.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
+                      {/* FIXED: Added Recommended vs Custom Badge Display here */}
+                      <div style={{ fontSize: '12px', color: '#38422B', fontWeight: '500', marginTop: '4px' }}>
+                        {log.isSuggested ? "★ Recommended" : "Custom"}
+                      </div>
                     </div>
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                       <button className="counter" onClick={() => {
@@ -308,7 +313,8 @@ export default function History({ masterExerciseList = [] }) {
                         {isExpanded ? "Hide" : "View"}
                       </button>
                       <button className="counter" onClick={() => {
-                        setEditingWorkout({ ...log })
+                        // FIXED: Preserves flag values into editing state context
+                        setEditingWorkout({ ...log, isSuggested: log.isSuggested || false })
                         setExpandedHistoryId(log._id)
                       }}>
                         Edit
@@ -383,24 +389,24 @@ export default function History({ masterExerciseList = [] }) {
           )}
         </div>
       )}
-{selectedExercise && (
-  <div id="full-report-container" style={{ display: 'none' }}>
-    <h2 style={{ padding: '20px' }}>{selectedExercise} Progress Report</h2>
-    {Object.keys(yAxisLabels).map((metric) => (
-      <div key={metric} id={`chart-${metric}`} style={{ marginBottom: '40px' }}>
-        <h3>{yAxisLabels[metric]}</h3>
-        <ResponsiveContainer width={600} height={300}>
-          <LineChart data={graphData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="date" />
-            <YAxis />
-            <Line type="monotone" dataKey={metric} stroke="#38422B" strokeWidth={2} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-    ))}
-  </div>
-)}
+      {selectedExercise && (
+        <div id="full-report-container" style={{ display: 'none' }}>
+          <h2 style={{ padding: '20px' }}>{selectedExercise} Progress Report</h2>
+          {Object.keys(yAxisLabels).map((metric) => (
+            <div key={metric} id={`chart-${metric}`} style={{ marginBottom: '40px' }}>
+              <h3>{yAxisLabels[metric]}</h3>
+              <ResponsiveContainer width={600} height={300}>
+                <LineChart data={graphData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Line type="monotone" dataKey={metric} stroke="#38422B" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ))}
+        </div>
+      )}
 
     </div>
   )

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import '../App.css'
 
 const THEME_GREEN = "#CCD5C0";
-const DARK_GREEN = "#38422B"; // Updated to dark green for text
+const DARK_GREEN = "#38422B";  
 
 export default function ExerciseSuggestions({ activeWorkout, setActiveWorkout, navigateTo }) {
   const [goalTypeKey, setGoalTypeKey] = useState("");
@@ -44,14 +44,54 @@ export default function ExerciseSuggestions({ activeWorkout, setActiveWorkout, n
   }, []);
 
   const handleAddClick = async (item) => {
-    const newExercise = { name: item.name, weight: item.weight || 0, reps: item.reps || 0, sets: item.sets || 0, time: item.time || 0, instructions: item.instructions || "", isOriginal: false };
+    const newExercise = { 
+      name: item.name, 
+      weight: item.weight || 0, 
+      reps: item.reps || 0, 
+      sets: item.sets || 0, 
+      time: item.time || 0, 
+      instructions: item.instructions || "" 
+      // Removed 'isOriginal' here to keep backend array items clean
+    };
+
+    // CASE A: A workout session is already active. Just append the exercise to it locally.
     if (activeWorkout) {
-      setActiveWorkout({ ...activeWorkout, exercises: [...activeWorkout.exercises, newExercise] });
-    } else {
-      setActiveWorkout({ isEditing: false, name: `${readableGoalNames[goalTypeKey] || "Suggested"} Session`, exercises: [newExercise] });
+      setActiveWorkout({ ...activeWorkout, exercises: [...activeWorkout.exercises, { ...newExercise, isOriginal: false }] });
+      setSuccessBanner({ visible: true, message: `Added ${item.name} to active session!` });
+      navigateTo('workouts'); 
+      window.scrollTo(0, 0);
+    } 
+    // CASE B: No workout is running. Save this recommendation to the backend database as a new workout template!
+    else {
+      try {
+        const payload = {
+          name: item.name,        
+          isTemplate: true,       
+          isSuggested: true,      
+          exercises: [newExercise] // This is a valid array, passing backend checks
+        };
+
+        // Added credentials: "include" so the backend knows who you are!
+        const response = await fetch("http://localhost:5000/api/workouts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include", 
+          body: JSON.stringify(payload),
+        });
+
+        if (response.ok) {
+          setSuccessBanner({ visible: true, message: `Saved recommended template: ${item.name}!` });
+          navigateTo('workouts'); 
+          window.scrollTo(0, 0);
+        } else {
+          const errData = await response.json();
+          console.error("Backend error details:", errData.message);
+        }
+      } catch (err) {
+        console.error("Network error while creating suggested routine:", err);
+      }
     }
-    navigateTo('workouts'); window.scrollTo(0, 0); 
-    setSuccessBanner({ visible: true, message: `Added ${item.name}!` });
+
     setTimeout(() => setSuccessBanner({ visible: false, message: "" }), 3000);
   };
 

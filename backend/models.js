@@ -14,6 +14,7 @@ const workoutSchema = new mongoose.Schema({
   name: { type: String, required: true },
   datetime: { type: Date, default: Date.now },
   isTemplate: { type: Boolean, default: false },
+  isSuggested: { type: Boolean, default: false },
   exercises: [
     {
       name: { type: String, required: true },
