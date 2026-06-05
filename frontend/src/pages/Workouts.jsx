@@ -29,7 +29,7 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
   return hasNoLoggedStats;
 });
 
-  const uniqueRoutines = displayRoutines.reduce((acc, current) => {
+  const uniqueRoutines = workouts.reduce((acc, current) => {
     if (!current.name) return acc;
     
     const existingIndex = acc.findIndex(
