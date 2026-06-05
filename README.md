@@ -1,7 +1,8 @@
 # Fitness-Tracker
-(description goes here)
+Fitness-Tracker is an app that allows you to track information about your fitness, including planning workouts, diet, and connecting with your friends! The primary feature of Fitness-Tracker is being able to create, edit, and start workouts. You can also set your goals to receive personalized suggestions for workouts that will help you reach your goals. Based on your goals, you can also receive diet suggestions. Fitness-Tracker also helps you connect with your friends over fitness, allowing you to send messages and workouts to your friends!
 
-![Fitness-Tracker](docs/sampleimage.jpg)
+<p align="center">![Fitness-Tracker_Demo](docs/Sample_Image.jpg)  
+*Screenshot from the Fitness-Tracker App*</p>
 
 ## Authors
 
@@ -13,6 +14,47 @@
 
 ## Features
 
+### Workouts
+
+Users can create named custom workouts where they can specify the order of different exercises which includes the name, weight, reps, and/or time of the workout. The workouts can be edited to change the workout. Users can start a workout and then log it to their history.
+
+### History
+
+Fitness-Tracker stores the history of your previous workouts. You can search by workout name or exercise name to track your progress.
+
+### Goals and Targets
+
+You can pick from a variety of goals to shape your workouts. You can decide when goals are completed or remove them without completing them.
+
+Targets track your progress toward a measurable outcome, such as weight, number of workouts, and duration of an exercise.
+
+### Exercise Suggestions
+
+Based on your goal(s), Fitness-Tracker will give you personalized suggestions to help you achieve your goal(s).
+
+### Profile
+
+Your profile stores information about you which can be shared to other users. This information includes, name age, weight, height, dietary restrictions, fitness goal, activity level, and your bio.
+
+### Connect with Others
+
+You can find and connect with other users on the site. You can send and receive connections requests, which will allow you to view a user's profile and send/receive messages after connecting with them. You can also send/receive workouts with your connections.
+
+### Diet Suggestions
+
+Based on your goal(s), you can receive suggestions on what meals you can eat. This includes information about calories, protein, carbs, and fat. Each meal suggestion includes a link to a recipe.
+
+## Implementation Description
+
+<p align="center">![Architecture_Diagram](docs/Diagram_Architecture.png)  
+*Our architecture includes a frontend, backend, and external sources. The diagram shows how they interface with each other*</p>
+
+<p align="center">![Workout_Diagram](docs/Diagram_Workout.png)  
+<p align="center">*This is an example of how the workouts are saved and shown to users*</p>
+
+![Message_Diagram](docs/Diagram_Message.png)
+<p align="center">*This example displays how a user can send messages to another user which is then received*</p>
+
 ## Installation
 
 ### Dependencies
@@ -20,7 +62,7 @@
 * [Node.js](https://nodejs.org/en/download) version 26.1 or later
 * [MongoDB Server](https://www.mongodb.com/) (local or Atlas)
 
-## Setup
+### Setup
 
 1. Clone the repository:
     ```bash
