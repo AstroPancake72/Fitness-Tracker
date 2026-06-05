@@ -39,6 +39,10 @@ test.describe('Fitness Tracker E2E Flows', () => {
     await page.waitForSelector('button:has-text("Add")', { timeout: 30000 });
     await page.locator('button:has-text("Add")').first().click();
 
+    //Start workout
+    await page.locator('[data-testid^="start-workout-"]').first().click();
+    await expect(page.getByText('Active Session')).toBeVisible();
+
     //Log the session
     await page.getByTestId('save-session-btn').click();
 
