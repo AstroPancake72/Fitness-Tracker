@@ -47,13 +47,14 @@ Based on your goal(s), you can receive suggestions on what meals you can eat. Th
 ## Implementation Description  
 
 ![Architecture_Diagram](docs/Diagram_Architecture.png)  
-*Our architecture includes a frontend, backend, and external sources. The diagram shows how they interface with each other*  
-
+*Our architecture includes a frontend, backend, and external sources. The diagram shows how they interface with each other*<br><br>
+  
 
 ![Workout_Diagram](docs/Diagram_Workout.png)  
-*This is an example of how the workouts are saved and shown to users*  
+*This is an example of how the workouts are saved and shown to users*<br><br>
+  
 
-![Message_Diagram](docs/Diagram_Message.png)  
+![Message_Diagram](docs/Diagram_Message.png)
 *This example displays how a user can send messages to another user which is then received*  
 
 ## Installation  
