@@ -412,8 +412,8 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
               </div>
             )}
             
-            <button data-testid="save-session-btn" className="counter" style={{flex: 2}} onClick={activeWorkout.isEditing ? saveWorkout : saveWorkout}>
-              {activeWorkout.isEditing ? "Save Template Config" : "Log Session to History"}
+            <button className="counter" style={{flex: 2}} onClick={() => setActiveWorkout({...activeWorkout, exercises: [...activeWorkout.exercises, {name: "", weight: 0, reps: 0, sets: 0, time: 0}]})}>
+              + Add Exercise
             </button>
             <div style={{display: 'flex', gap: '10px', marginTop: '20px'}}>
               <button className="counter" style={{background: '#8B0000', flex: 1}} onClick={() => setActiveWorkout(null)}>
@@ -427,7 +427,7 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
                 </button>
               )}
               
-              <button className="counter" style={{flex: 2}} onClick={saveWorkout}>
+              <button data-testid="save-session-btn" className="counter" style={{flex: 2}} onClick={saveWorkout}>
                 {activeWorkout.isEditing ? "Save Template Config" : "Log Session to History"}
               </button>
             </div>
