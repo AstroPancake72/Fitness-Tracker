@@ -1,8 +1,8 @@
 # Fitness-Tracker
 Fitness-Tracker is an app that allows you to track information about your fitness, including planning workouts, diet, and connecting with your friends! The primary feature of Fitness-Tracker is being able to create, edit, and start workouts. You can also set your goals to receive personalized suggestions for workouts that will help you reach your goals. Based on your goals, you can also receive diet suggestions. Fitness-Tracker also helps you connect with your friends over fitness, allowing you to send messages and workouts to your friends!
 
-<p align="center"><img src=https://github.com/AstroPancake72/Fitness-Tracker/blob/readme-update/docs/Sample_Image.jpg /></p>
-<p align="center">*Screenshot from the Fitness-Tracker App*</p>
+![Fitness-Tracker_Demo](docs/Sample_Image.jpg)  
+*Screenshot from the Fitness-Tracker App*
 
 ## Authors
 
@@ -46,14 +46,14 @@ Based on your goal(s), you can receive suggestions on what meals you can eat. Th
 
 ## Implementation Description
 
-<p align="center"><img src=https://github.com/AstroPancake72/Fitness-Tracker/blob/readme-update/docs/Diagram_Architecture.png /></p>
-<p align="center"> *Our architecture includes a frontend, backend, and external sources. The diagram shows how they interface with each other* </p>
+![Architecture_Diagram](docs/Diagram_Architecture.png)  
+*Our architecture includes a frontend, backend, and external sources. The diagram shows how they interface with each other*
 
-<p align="center"><img src=https://github.com/AstroPancake72/Fitness-Tracker/blob/readme-update/docs/Diagram_Workout.png /></p>
-<p align="center">*This is an example of how the workouts are saved and shown to users*</p>
+![Workout_Diagram](docs/Diagram_Workout.png)  
+*This is an example of how the workouts are saved and shown to users*
 
-<p align="center"><img src=https://github.com/AstroPancake72/Fitness-Tracker/blob/readme-update/docs/Diagram_Message.png /></p>
-<p align="center">*This example displays how a user can send messages to another user which is then received*</p>
+![Message_Diagram](docs/Diagram_Message.png)
+*This example displays how a user can send messages to another user which is then received*
 
 ## Installation
 
