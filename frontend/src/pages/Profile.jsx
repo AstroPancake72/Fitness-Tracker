@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import "../App.css";
+import Avatar, { profileImageUrl } from "./Avatar";
 
 export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
@@ -84,30 +85,30 @@ export default function Profile() {
   }
 
   async function uploadProfileImage(e) {
-  const file = e.target.files[0];
-  if (!file) return;
+    const file = e.target.files[0];
+    if (!file) return;
 
-  const formData = new FormData();
-  formData.append("profileImage", file);
+    const formData = new FormData();
+    formData.append("profileImage", file);
 
-  const res = await fetch("http://localhost:5000/api/profile/image", {
-    method: "POST",
-    credentials: "include",
-    body: formData,
-  });
-
-  const data = await res.json();
-
-  if (res.ok) {
-    setProfile({
-      ...profile,
-      profileImage: data.profileImage || "",
+    const res = await fetch("http://localhost:5000/api/profile/image", {
+      method: "POST",
+      credentials: "include",
+      body: formData,
     });
-    setMessage("Profile image uploaded!");
-  } else {
-    setMessage(data.message || "Image upload failed.");
+
+    const data = await res.json();
+
+    if (res.ok) {
+      setProfile({
+        ...profile,
+        profileImage: data.profileImage || "",
+      });
+      setMessage("Profile image uploaded!");
+    } else {
+      setMessage(data.message || "Image upload failed.");
+    }
   }
-}
 
   if (isEditing) {
     return (
@@ -198,9 +199,9 @@ export default function Profile() {
         </div>
 
         <div className="profile-art">
-          {profile.profileImage ? (
+          {profileImageUrl(profile.profileImage) ? (
             <img
-              src={`http://localhost:5000${profile.profileImage}`}
+              src={profileImageUrl(profile.profileImage)}
               alt="Profile"
               className="profile-image"
             />

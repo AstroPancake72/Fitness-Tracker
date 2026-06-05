@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { io } from "socket.io-client";
 import "../App.css";
+import Avatar from "./Avatar";
 
 // Single socket instance shared for the lifetime of the page
 let socket = null;
@@ -24,6 +25,7 @@ export default function Messages({ openWithUserId, onClearOpenWith }) {
   const [connections, setConnections] = useState([]);
   const [activePartnerId, setActivePartnerId] = useState(null);
   const [activePartnerName, setActivePartnerName] = useState("");
+  const [activePartnerImage, setActivePartnerImage] = useState("");
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [search, setSearch] = useState("");
@@ -94,7 +96,7 @@ export default function Messages({ openWithUserId, onClearOpenWith }) {
   useEffect(() => {
     if (openWithUserId && connections.length > 0) {
       const partner = connections.find((c) => c.userId.toString() === openWithUserId);
-      if (partner) openChat(openWithUserId, partner.fullName || "User");
+      if (partner) openChat(openWithUserId, partner.fullName || "User", partner.profileImage || "");
       onClearOpenWith?.();
     }
   }, [openWithUserId, connections]);
@@ -156,9 +158,10 @@ export default function Messages({ openWithUserId, onClearOpenWith }) {
 
   // ── Actions ──────────────────────────────────────────────────────────────────
 
-  function openChat(partnerId, partnerName) {
+  function openChat(partnerId, partnerName, partnerImage = "") {
     setActivePartnerId(partnerId);
     setActivePartnerName(partnerName);
+    setActivePartnerImage(partnerImage || resolveImage(partnerId));
     setMessageError("");
     fetchMessages(partnerId);
   }
@@ -217,18 +220,37 @@ export default function Messages({ openWithUserId, onClearOpenWith }) {
         ...prev.filter((c) => c.partnerId !== partnerId),
       ];
     }
-    return [{ partnerId, partnerName: "User", latestMessage: msg, unreadCount: 1 }, ...prev];
+    return [{ partnerId, partnerName: "User", partnerImage: "", latestMessage: msg, unreadCount: 1 }, ...prev];
+  }
+
+  // Resolve a partner's image id from whatever data we already hold:
+  // first an existing conversation entry, then the connections list.
+  function resolveImage(partnerId) {
+    const conv = conversations.find((c) => c.partnerId === partnerId);
+    if (conv && conv.partnerImage) return conv.partnerImage;
+    const conn = connections.find((c) => c.userId?.toString() === partnerId);
+    return conn?.profileImage || "";
   }
 
   // ── Filtered lists ────────────────────────────────────────────────────────────
 
   // Merge conversations + connections so all connections appear in sidebar
   const sidebarItems = (() => {
-    const items = [...conversations];
+    const items = conversations.map((c) => ({
+      ...c,
+      // Backfill image from connections if the conversation lacks one
+      partnerImage: c.partnerImage || resolveImage(c.partnerId),
+    }));
     connections.forEach((conn) => {
       const uid = conn.userId.toString();
       if (!items.find((c) => c.partnerId === uid)) {
-        items.push({ partnerId: uid, partnerName: conn.fullName || "User", latestMessage: null, unreadCount: 0 });
+        items.push({
+          partnerId: uid,
+          partnerName: conn.fullName || "User",
+          partnerImage: conn.profileImage || "",
+          latestMessage: null,
+          unreadCount: 0,
+        });
       }
     });
     return items.filter((item) => {
@@ -340,28 +362,33 @@ export default function Messages({ openWithUserId, onClearOpenWith }) {
             return (
               <div
                 key={item.partnerId}
-                onClick={() => openChat(item.partnerId, item.partnerName)}
+                onClick={() => openChat(item.partnerId, item.partnerName, item.partnerImage)}
                 style={{
                   ...convItemStyle,
                   background: isActive ? "#38422B" : "transparent",
                   color: isActive ? "white" : "#38422B",
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontWeight: item.unreadCount > 0 ? 700 : 500, fontSize: 15 }}>
-                    {item.partnerName}
-                  </span>
-                  {item.unreadCount > 0 && (
-                    <span style={unreadBadgeStyle}>{item.unreadCount}</span>
-                  )}
-                </div>
-                {item.latestMessage && (
-                  <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {item.latestMessage.type === "workout"
-                      ? `🏋️ ${item.latestMessage.workout?.name}`
-                      : item.latestMessage.content}
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <Avatar imageId={item.partnerImage} size={40} alt={item.partnerName} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontWeight: item.unreadCount > 0 ? 700 : 500, fontSize: 15 }}>
+                        {item.partnerName}
+                      </span>
+                      {item.unreadCount > 0 && (
+                        <span style={unreadBadgeStyle}>{item.unreadCount}</span>
+                      )}
+                    </div>
+                    {item.latestMessage && (
+                      <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {item.latestMessage.type === "workout"
+                          ? `🏋️ ${item.latestMessage.workout?.name}`
+                          : item.latestMessage.content}
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
             );
           })}
@@ -378,7 +405,10 @@ export default function Messages({ openWithUserId, onClearOpenWith }) {
           <>
             {/* Header */}
             <div style={chatHeaderStyle}>
-              <span style={{ fontWeight: 700, fontSize: 18 }}>{activePartnerName}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <Avatar imageId={activePartnerImage} size={40} alt={activePartnerName} />
+                <span style={{ fontWeight: 700, fontSize: 18 }}>{activePartnerName}</span>
+              </div>
               <button
                 className="counter"
                 style={{ marginBottom: 0, padding: "4px 12px", fontSize: 13 }}

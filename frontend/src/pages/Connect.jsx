@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import "../App.css";
+import Avatar from "./Avatar";
 
 export default function Connect({ onOpenMessage }) {
   const [activeTab, setActiveTab] = useState("discover");
@@ -110,7 +111,10 @@ export default function Connect({ onOpenMessage }) {
       {viewingProfile && (
         <div style={modalOverlayStyle}>
           <div style={modalBoxStyle}>
-            <h2 style={{ margin: "0 0 16px", color: "#38422B" }}>
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+              <Avatar imageId={viewingProfile.profileImage} size={96} alt={viewingProfile.fullName || "Profile"} />
+            </div>
+            <h2 style={{ margin: "0 0 16px", color: "#38422B", textAlign: "center" }}>
               {viewingProfile.fullName || "Anonymous Tracker"}
             </h2>
             <div style={profileDetailStyle}>
@@ -163,7 +167,10 @@ export default function Connect({ onOpenMessage }) {
                 .filter((u) => !connectionStatus[u._id] || connectionStatus[u._id] === "pending")
                 .map((user) => (
                   <div key={user._id} style={profileCardStyle}>
-                    <h3>{user.fullName || "Anonymous Tracker"}</h3>
+                    <div style={cardHeaderStyle}>
+                      <Avatar imageId={user.profileImage} size={48} alt={user.fullName || "Profile"} />
+                      <h3 style={{ margin: 0 }}>{user.fullName || "Anonymous Tracker"}</h3>
+                    </div>
                     {user.bio && (
                       <p style={{ fontSize: "14px", fontStyle: "italic" }}>"{user.bio}"</p>
                     )}
@@ -203,7 +210,10 @@ export default function Connect({ onOpenMessage }) {
               ) : (
                 requests.map((user) => (
                   <div key={user._id} style={profileCardStyle}>
-                    <h3>{user.fullName || "Anonymous Tracker"}</h3>
+                    <div style={cardHeaderStyle}>
+                      <Avatar imageId={user.profileImage} size={48} alt={user.fullName || "Profile"} />
+                      <h3 style={{ margin: 0 }}>{user.fullName || "Anonymous Tracker"}</h3>
+                    </div>
                     {user.bio && (
                       <p style={{ fontSize: "14px", fontStyle: "italic" }}>"{user.bio}"</p>
                     )}
@@ -248,7 +258,10 @@ export default function Connect({ onOpenMessage }) {
                 ) : (
                   filteredConnections.map((user) => (
                     <div key={user._id} style={profileCardStyle}>
-                      <h3>{user.fullName || "Anonymous Tracker"}</h3>
+                      <div style={cardHeaderStyle}>
+                        <Avatar imageId={user.profileImage} size={48} alt={user.fullName || "Profile"} />
+                        <h3 style={{ margin: 0 }}>{user.fullName || "Anonymous Tracker"}</h3>
+                      </div>
                       {user.bio && (
                         <p style={{ fontSize: "14px", fontStyle: "italic" }}>"{user.bio}"</p>
                       )}
@@ -326,6 +339,12 @@ const profileCardStyle = {
   display: "flex",
   flexDirection: "column",
   textAlign: "left",
+};
+const cardHeaderStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: "12px",
+  marginBottom: "10px",
 };
 const detailsGroupStyle = {
   borderTop: "1px solid rgba(56, 66, 43, 0.2)",

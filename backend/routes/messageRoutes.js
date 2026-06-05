@@ -55,6 +55,7 @@ router.get("/conversations", async (req, res) => {
       return {
         partnerId,
         partnerName: profile.fullName || "Unknown User",
+        partnerImage: profile.profileImage || "",
         latestMessage: latestMsg,
         unreadCount: unreadMap[partnerId] || 0,
       };
