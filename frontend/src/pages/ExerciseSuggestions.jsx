@@ -1,9 +1,13 @@
 import { useState, useEffect } from "react";
 import '../App.css'
 
+const THEME_GREEN = "#CCD5C0";
+const DARK_GREEN = "#38422B";  
+
 export default function ExerciseSuggestions({ activeWorkout, setActiveWorkout, navigateTo }) {
   const [goalTypeKey, setGoalTypeKey] = useState("");
   const [suggestions, setSuggestions] = useState([]);
+  const [fullSuggestionsList, setFullSuggestionsList] = useState([]); 
   const [loading, setLoading] = useState(true);
   const [successBanner, setSuccessBanner] = useState({ visible: false, message: "" });
 
@@ -15,132 +19,121 @@ export default function ExerciseSuggestions({ activeWorkout, setActiveWorkout, n
     CONSISTENCY: "Consistency & Mobility"
   };
 
+  const shuffle = (array) => [...array].sort(() => Math.random() - 0.5);
+
+  const handleRefresh = () => {
+    setSuggestions(shuffle(fullSuggestionsList).slice(0, 5));
+  };
+
   useEffect(() => {
     const controller = new AbortController();
-
     async function fetchSuggestions() {
       try {
-        const response = await fetch("http://localhost:5000/api/exercise-suggestions", {
-          credentials: "include",
-          signal: controller.signal
-        });
+        const response = await fetch("http://localhost:5000/api/exercise-suggestions", { credentials: "include", signal: controller.signal });
         if (response.ok) {
           const data = await response.json();
           setGoalTypeKey(data.goal || "");
-          setSuggestions(data.suggestions || []);
+          setFullSuggestionsList(data.suggestions || []); 
+          setSuggestions(shuffle(data.suggestions || []).slice(0, 5));
         }
-      } catch (err) {
-        if (err.name !== 'AbortError') {
-          console.error("Failed fetching suggestions:", err);
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setLoading(false);
-        }
-      }
+      } catch (err) { if (err.name !== 'AbortError') console.error("Error:", err); }
+      finally { if (!controller.signal.aborted) setLoading(false); }
     }
-
     fetchSuggestions();
     return () => controller.abort();
   }, []);
 
   const handleAddClick = async (item) => {
-    const newExercise = {
-      name: item.name,
-      weight: item.weight || 0,
-      reps: item.reps || 0,
-      sets: item.sets || 0,
-      time: item.time || 0,
-      instructions: item.instructions || "",
-      isOriginal: false
+    const newExercise = { 
+      name: item.name, 
+      weight: item.weight || 0, 
+      reps: item.reps || 0, 
+      sets: item.sets || 0, 
+      time: item.time || 0, 
+      instructions: item.instructions || "" 
+      // Removed 'isOriginal' here to keep backend array items clean
     };
 
+    // CASE A: A workout session is already active. Just append the exercise to it locally.
     if (activeWorkout) {
-      // Scenario A: session already open → append to it
-      setActiveWorkout({
-        ...activeWorkout,
-        exercises: [...activeWorkout.exercises, newExercise]
-      });
-    } else {
-      // Scenario B: no session → initialize a new active session!
-      // We no longer POST to the DB here. We let the user do that on the Workouts page.
-      const sessionName = `${readableGoalNames[goalTypeKey] || "Suggested"} Session`;
-      
-      setActiveWorkout({
-        isEditing: false,
-        name: sessionName,
-        exercises: [newExercise]
-      });
-    }
+      setActiveWorkout({ ...activeWorkout, exercises: [...activeWorkout.exercises, { ...newExercise, isOriginal: false }] });
+      setSuccessBanner({ visible: true, message: `Added ${item.name} to active session!` });
+      navigateTo('workouts'); 
+      window.scrollTo(0, 0);
+    } 
+    // CASE B: No workout is running. Save this recommendation to the backend database as a new workout template!
+    else {
+      try {
+        const payload = {
+          name: item.name,        
+          isTemplate: true,       
+          isSuggested: true,      
+          exercises: [newExercise] // This is a valid array, passing backend checks
+        };
 
-    // Immediately route the user to the workouts tab
-    // IMPORTANT: Change '/workouts' to whatever your actual route path is in App.js!
-    navigateTo('workouts'); 
-    window.scrollTo(0, 0); // Resets scroll position to the top of the page for a clean UX
+        // Added credentials: "include" so the backend knows who you are!
+        const response = await fetch("http://localhost:5000/api/workouts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include", 
+          body: JSON.stringify(payload),
+        });
+
+        if (response.ok) {
+          setSuccessBanner({ visible: true, message: `Saved recommended template: ${item.name}!` });
+          navigateTo('workouts'); 
+          window.scrollTo(0, 0);
+        } else {
+          const errData = await response.json();
+          console.error("Backend error details:", errData.message);
+        }
+      } catch (err) {
+        console.error("Network error while creating suggested routine:", err);
+      }
+    }
 
     setTimeout(() => setSuccessBanner({ visible: false, message: "" }), 3000);
   };
 
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh', color: '#38422B', fontWeight: 'bold' }}>
-        Loading Personalized Suggestions...
-      </div>
-    );
-  }
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', height: '50vh', color: DARK_GREEN, fontWeight: 'bold' }}>Loading...</div>;
 
   return (
-    <div style={{ padding: "20px", maxWidth: "600px", margin: "0 auto", color: "#38422B" }}>
-      <h2>Personalized Suggestions</h2>
-
-      {successBanner.visible && (
-        <div style={{
-          background: '#E1EAD6',
-          color: '#38422B',
-          padding: '15px',
-          borderRadius: '8px',
-          borderLeft: '5px solid #38422B',
-          marginBottom: '20px',
-          textAlign: 'center',
-          fontWeight: 'bold',
-          fontSize: '15px',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-        }}>
-          ✓ {successBanner.message}
-        </div>
-      )}
-
-      <p style={{ background: "#CCD5C0", padding: "10px", borderRadius: "5px", display: "inline-block" }}>
-        Suggested for your Goal: <strong>{readableGoalNames[goalTypeKey] || "General Fitness Selection"}</strong>
+    <div style={{ padding: "20px", maxWidth: "800px", margin: "0 auto", color: DARK_GREEN }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center",  maxWidth: "800px", margin: "0 auto 30px auto"}}>
+  <h2 style={{ fontSize: "2rem", color: "#38422B", margin: "0 0 10px 0" }}>
+    Personalized Suggestions
+  </h2>
+  <div style={{ width: "100%", display: "flex", justifyContent: "flex-end" }}>
+    <button onClick={handleRefresh} 
+      style={{ padding: "10px 20px", cursor: "pointer", backgroundColor: "#38422B", border: "none", borderRadius: "5px", fontWeight: "bold", color: "white" }}>
+      Refresh
+    </button>
+  </div>
+</div>
+      <p style={{ background: THEME_GREEN, padding: "10px", borderRadius: "5px", textAlign: "center", fontWeight: "bold", maxWidth: "400px", margin: "0 auto 20px" }}>
+        Goal: {readableGoalNames[goalTypeKey] || "General Fitness"}
       </p>
 
       <div style={{ marginTop: "20px" }}>
-        {suggestions.length === 0 ? (
-          <p>No active suggestions available. Select a Macro Goal category in your Goals Tab to populate routines.</p>
-        ) : (
-          suggestions.map((item, index) => (
-            <div key={index} style={{ background: "#F1F3EE", padding: "15px", borderRadius: "8px", border: "1px solid #CCD5C0", marginBottom: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ marginRight: '15px', maxWidth: '70%' }}>
-                <h4 style={{ margin: "0 0 5px 0", textTransform: 'capitalize' }}>{item.name}</h4>
-                <p style={{ fontSize: "12px", color: "#666", margin: "0 0 8px 0", fontStyle: "italic" }}>
-                  {item.instructions ? item.instructions.substring(0, 120) + "..." : "No instructions available."}
-                </p>
-                <span style={{ fontSize: "13px", color: "#38422B", fontWeight: 'bold' }}>
-                  {item.time || item.type === "cardio"
-                    ? `Duration: ${item.time || 25} mins`
-                    : `Target: ${item.sets || 4} sets x ${item.reps || 10} reps @ ${item.weight || 0} lbs`}
-                </span>
+        {suggestions.map((item, index) => (
+          <div key={index} style={{ background: "#F1F3EE", padding: "20px", borderRadius: "8px", border: "1px solid #CCD5C0", marginBottom: "15px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ flex: 1, marginRight: '20px' }}>
+              <h4 style={{ margin: "0 0 10px 0", textTransform: 'capitalize', color: DARK_GREEN }}>{item.name}</h4>
+              <p style={{ fontSize: "14px", color: "#555", margin: 0 }}>
+                {item.instructions ? item.instructions.substring(0, 100) + "..." : "No description."}
+              </p>
+              <div style={{ fontWeight: "bold", fontSize: "14px", marginTop: "10px" }}>
+                {item.time ? `Duration: ${item.time} mins` : `Target: ${item.sets} sets x ${item.reps} reps`}
               </div>
-              <button
-                onClick={() => handleAddClick(item)}
-                className="counter"
-                style={{ padding: "8px 12px", cursor: "pointer", whiteSpace: 'nowrap' }}
-              >
-                + Add Exercise
-              </button>
             </div>
-          ))
-        )}
+            <button 
+              onClick={() => handleAddClick(item)} 
+              style={{ padding: "10px 20px", cursor: "pointer", backgroundColor: THEME_GREEN, border: "none", borderRadius: "5px", fontWeight: "bold", color: DARK_GREEN, minWidth: "80px" }}
+            >
+              + Add
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -22,29 +22,31 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
     fetchWorkouts();
   }, [])
 
-  const displayRoutines = workouts.filter(w => {
-    if (w.name && w.name.startsWith("Suggested:")) return true;
-    
-    if (w.isTemplate) return true;
-
-    const hasNoLoggedStats = w.exercises && w.exercises.every(ex => (ex.weight || 0) === 0);
-    return hasNoLoggedStats;
-  });
+ const displayRoutines = workouts.filter(w => {
+  if (w.isTemplate === true) return true;
+    if (w.isTemplate === false) return false;
+  const hasNoLoggedStats = w.exercises && w.exercises.every(ex => (ex.weight || 0) === 0);
+  return hasNoLoggedStats;
+});
 
   const uniqueRoutines = displayRoutines.reduce((acc, current) => {
     if (!current.name) return acc;
     
     const existingIndex = acc.findIndex(
-      item => item.name.trim().toLowerCase() === current.name.trim().toLowerCase()
+      item => item._id === current._id || item.name.trim().toLowerCase() === current.name.trim().toLowerCase()
     );
     
     if (existingIndex === -1) {
       acc.push(current);
     } else {
       const existingItem = acc[existingIndex];
-      if (current.isTemplate && !existingItem.isTemplate) {
+      
+      if (current.isSuggested && !existingItem.isSuggested) {
         acc[existingIndex] = current;
-      } else if (new Date(current.datetime) > new Date(existingItem.datetime) && (current.isTemplate === existingItem.isTemplate)) {
+      } 
+      else if (!existingItem.isSuggested && current.isTemplate && !existingItem.isTemplate) {
+        acc[existingIndex] = current;
+      } else if (!existingItem.isSuggested && new Date(current.datetime) > new Date(existingItem.datetime) && (current.isTemplate === existingItem.isTemplate)) {
         acc[existingIndex] = current;
       }
     }
@@ -58,6 +60,7 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
       originalDate: routine.datetime, 
       originalName: routine.name,
       name: routine.name,
+      isSuggested: routine.isSuggested || false, 
       exercises: routine.exercises.map(ex => ({ ...ex, instructions: ex.instructions || "", isOriginal: false }))
     });
   }
@@ -73,24 +76,22 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
       isOriginal: true
     }));
 
-    // Scenario A: no active workout → just start it
     if (!activeWorkout) {
       setActiveWorkout({
         isEditing: false,
         templateId: baseline._id,
         name: baseline.name,
+        isSuggested: baseline.isSuggested || false,
         exercises: newExercises
       });
       return;
     }
 
-    // Scenario B: workout already in progress → ask user
     const choice = window.confirm(
       `You already have "${activeWorkout.name}" in progress.\n\nClick OK to append "${baseline.name}" to your current session.\nClick Cancel to discard your current session and start fresh.`
     );
 
     if (choice) {
-      // Append template exercises to existing session
       setActiveWorkout({
         ...activeWorkout,
         exercises: [
@@ -99,11 +100,11 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
         ]
       });
     } else {
-      // Discard and start fresh
       setActiveWorkout({
         isEditing: false,
         templateId: baseline._id,
         name: baseline.name,
+        isSuggested: baseline.isSuggested || false,
         exercises: newExercises
       });
     }
@@ -149,7 +150,6 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
       return;
     }
 
-    // Define cleanedExercises FIRST before any branching
     const cleanedExercises = allValidExercises.map(({ isOriginal, ...rest }) => ({
       ...rest,
       weight: rest.weight === "" ? 0 : Number(rest.weight),
@@ -173,7 +173,8 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
             name: activeWorkout.name,
             datetime: activeWorkout.originalDate || new Date(),
             exercises: cleanedExercises,
-            isTemplate: true
+            isTemplate: true,
+            isSuggested: activeWorkout.isSuggested || false 
           }),
         });
         setActiveWorkout(null);
@@ -190,7 +191,8 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
           name: activeWorkout.name,
           datetime: new Date(),
           exercises: cleanedExercises,
-          isTemplate: false
+          isTemplate: false,
+          isSuggested: activeWorkout.isSuggested || false 
         }),
       });
 
@@ -229,12 +231,12 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
           name: activeWorkout.name,
           datetime: new Date(),
           exercises: cleanedExercises,
-          isTemplate: true
+          isTemplate: true,
+          isSuggested: activeWorkout.isSuggested || false
         }),
       });
 
       fetchWorkouts();
-      // Don't clear activeWorkout — session continues
       setSaveTemplateBanner(true);
       setTimeout(() => setSaveTemplateBanner(false), 2500);
     } catch (err) {
@@ -262,7 +264,7 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
       {!activeWorkout ? (
         <div style={{ width: '100%' }}>
           {!showAddRoutine ? (
-            <button className="counter" style={{width: '100%', marginBottom: '20px'}} onClick={() => setShowAddRoutine(true)}>
+            <button data-testid="create-template-btn" name="Create New Routine Template" className="counter" style={{width: '100%', marginBottom: '20px'}} onClick={() => setShowAddRoutine(true)}>
               + Create New Routine Template
             </button>
           ) : (
@@ -301,11 +303,11 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
               <div style={{textAlign: 'left'}}>
                 <div style={{fontWeight: 'bold', fontSize: '18px', textTransform: 'capitalize'}}>{r.name}</div>
                 <div style={{fontSize: '12px', color: '#666'}}>
-                  {r.name.startsWith("Suggested:") ? "Recommended" : "Custom"}
+                  {r.isSuggested ? "Recommended" : "Custom"}
                 </div>
               </div>
               <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
-                <button className="counter" onClick={() => startWorkout(r)}>Start</button>
+                <button data-testid={`start-workout-${r._id}`} className="counter" onClick={() => startWorkout(r)}>Start</button>
                 <button className="counter" onClick={() => editWorkout(r)}>Edit</button>
                 <button className="counter" style={{background: '#8B0000', ...deleteBtnStyle}} onClick={() => openDeleteModal('routine', r._id)}>✕</button>
               </div>
@@ -364,7 +366,7 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
 
               return (
                 <div key={i} style={{ marginBottom: '12px' }}>
-                  <div className="exercise-row-grid"style={{
+                  <div className="exercise-row-grid" style={{
                     ...exerciseRowStyle,
                     opacity: isFieldDisabled ? 0.85 : 1,
                     marginBottom: '0',
@@ -404,32 +406,31 @@ export default function Workouts({ activeWorkout, setActiveWorkout, masterExerci
             })}
 
             {saveTemplateBanner && (
-  <div style={{ background: '#E1EAD6', color: '#38422B', padding: '10px', borderRadius: '8px', 
-    borderLeft: '4px solid #38422B', marginBottom: '12px', fontWeight: 'bold', fontSize: '13px' }}>
-    ✓ Template updated!
-  </div>
-)}
-          <button className="counter" style={{width: '100%', background: 'transparent', color: '#38422B', border: '1px dashed #38422B', marginBottom: '20px'}}
-            onClick={() => setActiveWorkout({...activeWorkout, exercises: [...activeWorkout.exercises, {name: "", weight: 0, reps: 0, sets: 0, time: 0, isOriginal: false}]})}>
-            {activeWorkout.isEditing ? "+ Add Exercise to Template" : "+ Add Exercise to Session"}
-          </button>
-          <div style={{display: 'flex', gap: '10px', marginTop: '20px'}}>
-            <button className="counter" style={{background: '#8B0000', flex: 1}} onClick={() => setActiveWorkout(null)}>
-              Exit
-            </button>
-            
-            {!activeWorkout.isEditing && (
-              <button className="counter" style={{flex: 1, background: 'transparent', color: '#38422B', border: '1px solid #38422B'}} 
-                onClick={saveTemplate}>
-                Save Template
-              </button>
+              <div style={{ background: '#E1EAD6', color: '#38422B', padding: '10px', borderRadius: '8px', 
+                borderLeft: '4px solid #38422B', marginBottom: '12px', fontWeight: 'bold', fontSize: '13px' }}>
+                ✓ Template updated!
+              </div>
             )}
             
-            <button className="counter" style={{flex: 2}} onClick={activeWorkout.isEditing ? saveWorkout : saveWorkout}>
+            <button data-testid="save-session-btn" className="counter" style={{flex: 2}} onClick={activeWorkout.isEditing ? saveWorkout : saveWorkout}>
               {activeWorkout.isEditing ? "Save Template Config" : "Log Session to History"}
             </button>
-          </div>
-
+            <div style={{display: 'flex', gap: '10px', marginTop: '20px'}}>
+              <button className="counter" style={{background: '#8B0000', flex: 1}} onClick={() => setActiveWorkout(null)}>
+                Exit
+              </button>
+              
+              {!activeWorkout.isEditing && (
+                <button className="counter" style={{flex: 1, background: 'transparent', color: '#38422B', border: '1px solid #38422B' }} 
+                  onClick={saveTemplate}>
+                  Save Template
+                </button>
+              )}
+              
+              <button className="counter" style={{flex: 2}} onClick={saveWorkout}>
+                {activeWorkout.isEditing ? "Save Template Config" : "Log Session to History"}
+              </button>
+            </div>
           </div>
         </>
       )}

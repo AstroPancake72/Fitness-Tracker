@@ -23,7 +23,13 @@ export default function Login({ onLogin, onShowSignup, onForgotPassword}) {
 
       if (response.ok) {
         setMessage("");
-        setShowCodePage(true); 
+        if (data.requires2FA) {
+          // Normal flow - show 2FA code entry
+          setShowCodePage(true);
+        } else {
+          // 2FA bypassed (test user) - go straight in
+          onLogin();
+        }
       } else {
         setMessage(data.message || "Wrong email or password");
       }
@@ -96,6 +102,7 @@ export default function Login({ onLogin, onShowSignup, onForgotPassword}) {
           />
           <button
             type="button" 
+
             onClick={() => setShowPassword(!showPassword)}
             style={{
               position: 'absolute',
@@ -118,7 +125,7 @@ export default function Login({ onLogin, onShowSignup, onForgotPassword}) {
           </button>
         </div>
 
-        <button type="submit" style={{ marginTop: '15px' }}>Log In</button>
+        <button type="submit" name = "Log In"style={{ marginTop: '15px' }}>Log In</button>
         <button type="button" onClick={onForgotPassword} className="link-button" style={{ marginTop: '12px', fontSize: '14px', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
           Forgot Password?
         </button>
